@@ -1,0 +1,1427 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🍎 Яблочный Бегун — Shorts</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #000; }
+body { display: flex; align-items: center; justify-content: center; }
+canvas {
+  display: block;
+  max-width: 100vw;
+  max-height: 100vh;
+  width: auto;
+  height: auto;
+  aspect-ratio: 9/16;
+}
+</style>
+</head>
+<body>
+<canvas id="c" width="1080" height="1920"></canvas>
+<script>
+const C = document.getElementById('c');
+const X = C.getContext('2d');
+const W = 1080, H = 1920;
+
+// Константы
+const GROUND_Y = 1550;
+const FENCE_Y = 1480;
+const FENCE_H = 180;
+const BASE_SPEED = 6;
+const GRAVITY = 0.85;
+const JUMP_VEL = -22;
+
+// Состояние
+let worldX = 0;
+let speed = BASE_SPEED;
+let score = 0;
+let combo = 0;
+let maxCombo = 0;
+let comboTimer = 0;
+let shake = 0;
+let time = 0;
+let bestScore = 0;
+let state = 'title'; // title | play | over
+let deathAnim = 0;
+let newRecord = false;
+
+// Игрок
+const P = {
+  x: 280, y: 0, vy: 0,
+  w: 70, h: 110,
+  onGround: false,
+  onFence: false,
+  frame: 0, frameT: 0,
+  blink: 0,
+  eating: 0,
+  squash: 1,
+  tilt: 0
+};
+
+// Деревья
+const trees = [];
+function makeTree(x) {
+  const t = {
+    x,
+    trunkH: 350 + Math.random() * 150,
+    trunkW: 55 + Math.random() * 20,
+    crownR: 130 + Math.random() * 50,
+    apples: [],
+    hue: 95 + Math.random() * 30,
+    sway: Math.random() * Math.PI * 2
+  };
+  const n = 7 + Math.floor(Math.random() * 5);
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * Math.PI * 2 + Math.random() * 0.5;
+    const r = Math.random() * t.crownR * 0.65;
+    t.apples.push({
+      ox: Math.cos(a) * r,
+      oy: Math.sin(a) * r * 0.75,
+      eaten: false,
+      respawn: 0,
+      pop: 0
+    });
+  }
+  return t;
+}
+
+// Облака
+const clouds = [];
+for (let i = 0; i < 12; i++) {
+  clouds.push({
+    x: Math.random() * W * 3,
+    y: 80 + Math.random() * 400,
+    s: 0.6 + Math.random() * 1.2,
+    sp: 0.3 + Math.random() * 0.5
+  });
+}
+
+// Здания
+const buildings = [];
+function makeBuilding(x) {
+  const h = 300 + Math.random() * 700;
+  return {
+    x, w: 140 + Math.random() * 160, h,
+    color: `hsl(${Math.random() * 360}, 55%, ${50 + Math.random() * 25}%)`,
+    cols: 2 + Math.floor(Math.random() * 4),
+    rows: 3 + Math.floor(Math.random() * 7),
+    roof: Math.random() > 0.7
+  };
+}
+
+// Частицы
+const parts = [];
+// Всплывающие числа
+const floats = [];
+
+// Звёздочки/конфетти при комбо
+const confetti = [];
+
+// Инициализация
+function reset() {
+  worldX = 0;
+  speed = BASE_SPEED;
+  score = 0;
+  combo = 0;
+  maxCombo = 0;
+  comboTimer = 0;
+  shake = 0;
+  deathAnim = 0;
+  newRecord = false;
+  trees.length = 0;
+  buildings.length = 0;
+  parts.length = 0;
+  floats.length = 0;
+  confetti.length = 0;
+  P.y = GROUND_Y - P.h;
+  P.vy = 0;
+  P.onGround = true;
+  P.onFence = false;
+  P.eating = 0;
+  P.squash = 1;
+  P.tilt = 0;
+
+  for (let i = 0; i < 20; i++) {
+    trees.push(makeTree(800 + i * (450 + Math.random() * 300)));
+  }
+  for (let i = 0; i < 25; i++) {
+    buildings.push(makeBuilding(i * 200 + Math.random() * 100));
+  }
+}
+reset();
+
+// Ввод — автопрыжок + тап
+let autoJump = true;
+function jump() {
+  if (P.onFence) {
+    P.vy = JUMP_VEL;
+    P.onFence = false;
+    P.onGround = false;
+    P.squash = 0.7;
+    // Пыль
+    for (let i = 0; i < 6; i++) {
+      parts.push({
+        x: P.x + P.w / 2, y: FENCE_Y - FENCE_H,
+        vx: (Math.random() - 0.5) * 8,
+        vy: -Math.random() * 5,
+        life: 20, max: 20,
+        r: 5 + Math.random() * 8,
+        color: 'rgba(200,200,200,0.7)'
+      });
+    }
+  } else if (P.onGround) {
+    P.vy = JUMP_VEL * 0.9;
+    P.onGround = false;
+    P.squash = 0.75;
+  }
+}
+
+C.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  if (state === 'title') { state = 'play'; reset(); return; }
+  if (state === 'over') {
+    if (deathAnim > 60) { state = 'play'; reset(); }
+    return;
+  }
+  jump();
+  autoJump = false;
+});
+C.addEventListener('keydown', e => {
+  if (e.code === 'Space') {
+    e.preventDefault();
+    if (state === 'title') { state = 'play'; reset(); return; }
+    if (state === 'over' && deathAnim > 60) { state = 'play'; reset(); return; }
+    jump();
+    autoJump = false;
+  }
+});
+
+// === Обновление ===
+function update() {
+  time++;
+
+  // Комбо таймер
+  if (comboTimer > 0) {
+    comboTimer--;
+    if (comboTimer <= 0) combo = 0;
+  }
+
+  if (state !== 'play') {
+    if (state === 'over') deathAnim++;
+    // Партиклы всё равно живут
+    updateParts();
+    return;
+  }
+
+  // Скорость растёт
+  speed = BASE_SPEED + Math.floor(score / 10) * 0.5;
+  worldX += speed;
+
+  // Автопрыжок (для автоплея)
+  if (autoJump) {
+    const nextTree = trees.find(t => t.x - worldX > P.x - 50 && t.x - worldX < P.x + 400);
+    if (nextTree && (P.onGround || P.onFence)) {
+      const dist = nextTree.x - worldX - P.x;
+      if (dist < 350) jump();
+    }
+    // Прыжок с паркана автоматически
+    if (P.onFence && Math.random() < 0.08) jump();
+  }
+
+  // Физика
+  P.vy += GRAVITY;
+  P.y += P.vy;
+
+  const groundTop = GROUND_Y - P.h;
+  const fenceTop = FENCE_Y - FENCE_H - P.h;
+
+  // Земля
+  if (P.y >= groundTop) {
+    P.y = groundTop;
+    P.vy = 0;
+    if (!P.onGround) P.squash = 1.3;
+    P.onGround = true;
+    P.onFence = false;
+  } else {
+    P.onGround = false;
+  }
+
+  // Паркан
+  const fScreenCheck = FENCE_Y - FENCE_H;
+  if (P.y + P.h >= fScreenCheck - 10 &&
+      P.y + P.h <= fScreenCheck + 30 &&
+      P.vy >= 0) {
+    P.y = fScreenCheck - P.h;
+    P.vy = 0;
+    if (!P.onFence) P.squash = 1.15;
+    P.onFence = true;
+    P.onGround = false;
+  }
+
+  // Сквош возврат
+  P.squash += (1 - P.squash) * 0.15;
+  P.tilt += (0 - P.tilt) * 0.1;
+
+  // Анимация
+  const runSpeed = P.onGround || P.onFence ? 5 : 8;
+  P.frameT++;
+  if (P.frameT > 10 - speed * 0.3) {
+    P.frame = (P.frame + 1) % 4;
+    P.frameT = 0;
+  }
+
+  // Моргание
+  P.blink--;
+  if (P.blink < -Math.random() * 150) P.blink = 8;
+
+  // Едение
+  if (P.eating > 0) P.eating--;
+
+  // Деревья
+  for (const t of trees) {
+    const sx = t.x - worldX;
+    if (sx < -500 || sx > W + 800) continue;
+    t.sway += 0.02;
+    for (const a of t.apples) {
+      if (a.eaten) {
+        a.respawn--;
+        if (a.respawn <= 0) { a.eaten = false; a.pop = 15; }
+        continue;
+      }
+      if (a.pop > 0) a.pop--;
+
+      const cy = GROUND_Y - t.trunkH - 20;
+      const ax = sx + a.ox;
+      const ay = cy + a.oy + Math.sin(t.sway + a.ox) * 4;
+
+      const px = P.x + P.w / 2;
+      const py = P.y + P.h / 2;
+      const dx = px - ax;
+      const dy = py - ay;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+
+      if (dist < 95) {
+        a.eaten = true;
+        a.respawn = 400 + Math.random() * 300;
+        score++;
+        combo++;
+        if (combo > maxCombo) maxCombo = combo;
+        comboTimer = 120;
+        P.eating = 18;
+        shake = Math.min(15, 5 + combo);
+        P.squash = 0.8;
+
+        const pts = combo >= 5 ? combo * 2 : 1;
+        // Было: score += pts; но оставим score++ для простоты счёта
+        // Добавим очки комбо
+        // Actually let's add combo points to a separate display
+
+        floats.push({
+          x: ax, y: ay,
+          text: combo >= 5 ? `+${combo}x COMBO!` : '+1',
+          life: 50, max: 50,
+          color: combo >= 5 ? '#FFD700' : '#FFF',
+          size: combo >= 5 ? 55 : 40
+        });
+
+        // Частицы
+        for (let i = 0; i < 12; i++) {
+          parts.push({
+            x: ax, y: ay,
+            vx: (Math.random() - 0.5) * 14,
+            vy: (Math.random() - 0.5) * 14 - 4,
+            life: 35, max: 35,
+            r: 4 + Math.random() * 10,
+            color: `hsl(${10 + Math.random() * 30}, 90%, ${50 + Math.random() * 20}%)`
+          });
+        }
+        // Листья
+        for (let i = 0; i < 5; i++) {
+          parts.push({
+            x: ax, y: ay,
+            vx: (Math.random() - 0.5) * 8,
+            vy: -Math.random() * 6,
+            life: 45, max: 45,
+            r: 6 + Math.random() * 6,
+            color: `hsl(${100 + Math.random() * 40}, 70%, 45%)`,
+            leaf: true,
+            rot: Math.random() * Math.PI * 2
+          });
+        }
+
+        // Конфетти при комбо >= 5
+        if (combo >= 5 && combo % 5 === 0) {
+          for (let i = 0; i < 30; i++) {
+            confetti.push({
+              x: Math.random() * W,
+              y: -20,
+              vx: (Math.random() - 0.5) * 4,
+              vy: 3 + Math.random() * 6,
+              life: 80 + Math.random() * 40,
+              color: `hsl(${Math.random() * 360}, 90%, 60%)`,
+              r: 6 + Math.random() * 8,
+              rot: Math.random() * Math.PI * 2,
+              rv: (Math.random() - 0.5) * 0.3
+            });
+          }
+        }
+      }
+    }
+  }
+
+  // Ускорение деревьев вперёд
+  const lastTree = trees[trees.length - 1];
+  if (lastTree && lastTree.x - worldX < W + 600) {
+    trees.push(makeTree(lastTree.x + 500 + Math.random() * 350));
+  }
+  // Удаление старых
+  while (trees.length > 0 && trees[0].x - worldX < -600) trees.shift();
+
+  const lastB = buildings[buildings.length - 1];
+  if (lastB && lastB.x - worldX < W + 500) {
+    buildings.push(makeBuilding(lastB.x + 180 + Math.random() * 120));
+  }
+  while (buildings.length > 0 && buildings[0].x - worldX < -400) buildings.shift();
+
+  updateParts();
+
+  // Тряска
+  if (shake > 0) shake *= 0.88;
+}
+
+function updateParts() {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.25;
+    p.life--;
+    if (p.leaf) p.rot += 0.1;
+    if (p.life <= 0) parts.splice(i, 1);
+  }
+  for (let i = floats.length - 1; i >= 0; i--) {
+    const f = floats[i];
+    f.y -= 3;
+    f.life--;
+    if (f.life <= 0) floats.splice(i, 1);
+  }
+  for (let i = confetti.length - 1; i >= 0; i--) {
+    const c = confetti[i];
+    c.x += c.vx;
+    c.y += c.vy;
+    c.rot += c.rv;
+    c.life--;
+    if (c.life <= 0 || c.y > H + 30) confetti.splice(i, 1);
+  }
+}
+
+// === Отрисовка ===
+function draw() {
+  X.save();
+
+  // Тряска
+  if (shake > 0.5) {
+    X.translate((Math.random() - 0.5) * shake, (Math.random() - 0.5) * shake);
+  }
+
+  // Небо — градиент дня
+  const sky = X.createLinearGradient(0, 0, 0, H);
+  sky.addColorStop(0, '#1a237e');
+  sky.addColorStop(0.3, '#42a5f5');
+  sky.addColorStop(0.6, '#81d4fa');
+  sky.addColorStop(1, '#e1f5fe');
+  X.fillStyle = sky;
+  X.fillRect(0, 0, W, H);
+
+  // Солнце
+  const sunX = W - 160, sunY = 200;
+  const sunGlow = X.createRadialGradient(sunX, sunY, 40, sunX, sunY, 180);
+  sunGlow.addColorStop(0, 'rgba(255,235,59,0.9)');
+  sunGlow.addColorStop(0.3, 'rgba(255,235,59,0.3)');
+  sunGlow.addColorStop(1, 'rgba(255,235,59,0)');
+  X.fillStyle = sunGlow;
+  X.fillRect(sunX - 200, sunY - 200, 400, 400);
+
+  X.fillStyle = '#FFF176';
+  X.beginPath();
+  X.arc(sunX, sunY, 70, 0, Math.PI * 2);
+  X.fill();
+  X.fillStyle = '#FFFDE7';
+  X.beginPath();
+  X.arc(sunX, sunY, 50, 0, Math.PI * 2);
+  X.fill();
+
+  // Лучи
+  X.save();
+  X.translate(sunX, sunY);
+  X.rotate(time * 0.003);
+  X.strokeStyle = 'rgba(255,241,118,0.25)';
+  X.lineWidth = 6;
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2;
+    X.beginPath();
+    X.moveTo(Math.cos(a) * 85, Math.sin(a) * 85);
+    X.lineTo(Math.cos(a) * 140, Math.sin(a) * 140);
+    X.stroke();
+  }
+  X.restore();
+
+  // Облака
+  for (const c of clouds) {
+    const cx = ((c.x - worldX * c.sp) % (W + 500) + W + 500) % (W + 500) - 250;
+    X.fillStyle = 'rgba(255,255,255,0.92)';
+    const s = c.s;
+    X.beginPath();
+    X.ellipse(cx, c.y, 90 * s, 40 * s, 0, 0, Math.PI * 2);
+    X.ellipse(cx + 55 * s, c.y - 20 * s, 65 * s, 35 * s, 0, 0, Math.PI * 2);
+    X.ellipse(cx - 55 * s, c.y - 10 * s, 55 * s, 30 * s, 0, 0, Math.PI * 2);
+    X.ellipse(cx + 20 * s, c.y - 35 * s, 50 * s, 30 * s, 0, 0, Math.PI * 2);
+    X.fill();
+  }
+
+  // Дальние горы
+  X.fillStyle = '#5c6bc0';
+  X.beginPath();
+  X.moveTo(0, GROUND_Y);
+  for (let x = 0; x <= W; x += 60) {
+    const h = Math.sin((x + worldX * 0.1) * 0.008) * 120 +
+              Math.sin((x + worldX * 0.1) * 0.02) * 60 + 200;
+    X.lineTo(x, GROUND_Y - h);
+  }
+  X.lineTo(W, GROUND_Y);
+  X.fill();
+
+  // Здания
+  for (const b of buildings) {
+    const bx = b.x - worldX;
+    if (bx + b.w < -20 || bx > W + 20) continue;
+    const by = GROUND_Y - b.h;
+
+    X.fillStyle = b.color;
+    X.fillRect(bx, by, b.w, b.h);
+
+    // Карниз
+    X.fillStyle = 'rgba(0,0,0,0.18)';
+    X.fillRect(bx, by, b.w, 14);
+
+    // Окна
+    const pad = 18;
+    const winW = (b.w - pad * (b.cols + 1)) / b.cols;
+    const winH = 28;
+    const rowH = (b.h - 50) / b.rows;
+    for (let r = 0; r < b.rows; r++) {
+      for (let c2 = 0; c2 < b.cols; c2++) {
+        const wx = bx + pad + c2 * (winW + pad);
+        const wy = by + 30 + r * rowH;
+        if (wy + winH > GROUND_Y - 10) break;
+        const lit = ((Math.floor(b.x) * 7 + r * 17 + c2 * 41) % 10) < 5;
+        X.fillStyle = lit ? '#FFE082' : '#1a2744';
+        X.fillRect(wx, wy, winW, winH);
+        if (lit) {
+          X.fillStyle = 'rgba(255,224,130,0.3)';
+          X.fillRect(wx - 3, wy - 3, winW + 6, winH + 6);
+        }
+      }
+    }
+
+    // Крыша-антенна
+    if (b.roof) {
+      X.strokeStyle = '#78909c';
+      X.lineWidth = 4;
+      X.beginPath();
+      X.moveTo(bx + b.w / 2, by);
+      X.lineTo(bx + b.w / 2, by - 40);
+      X.stroke();
+      X.fillStyle = '#ef5350';
+      X.beginPath();
+      X.arc(bx + b.w / 2, by - 45, 6, 0, Math.PI * 2);
+      X.fill();
+    }
+  }
+
+  // Земля
+  const gg = X.createLinearGradient(0, GROUND_Y - 20, 0, H);
+  gg.addColorStop(0, '#66bb6a');
+  gg.addColorStop(0.3, '#43a047');
+  gg.addColorStop(1, '#2e7d32');
+  X.fillStyle = gg;
+  X.fillRect(0, GROUND_Y - 15, W, H - GROUND_Y + 15);
+
+  // Тропинка
+  X.fillStyle = '#8d6e63';
+  X.fillRect(0, GROUND_Y + 40, W, 80);
+  X.fillStyle = '#795548';
+  for (let i = 0; i < 20; i++) {
+    const px = ((i * 120 - worldX * 0.8) % (W + 120) + W + 120) % (W + 120) - 60;
+    X.fillRect(px, GROUND_Y + 55, 50, 8);
+    X.fillRect(px + 20, GROUND_Y + 85, 50, 8);
+  }
+
+  // Травинки
+  X.strokeStyle = '#81c784';
+  X.lineWidth = 4;
+  for (let i = 0; i < 50; i++) {
+    const gx = ((i * 89 - worldX * 0.6) % (W + 40) + W + 40) % (W + 40) - 20;
+    const gy = GROUND_Y + 20 + (i * 37 % 25);
+    const sw = Math.sin(time * 0.05 + i) * 8;
+    X.beginPath();
+    X.moveTo(gx, gy);
+    X.quadraticCurveTo(gx + sw, gy - 25, gx + sw * 1.5, gy - 40);
+    X.stroke();
+  }
+
+  // Паркан
+  drawFence();
+
+  // Деревья
+  for (const t of trees) {
+    drawTree(t);
+  }
+
+  // Частицы
+  for (const p of parts) {
+    const alpha = p.life / p.max;
+    X.globalAlpha = alpha;
+    if (p.leaf) {
+      X.save();
+      X.translate(p.x, p.y);
+      X.rotate(p.rot);
+      X.fillStyle = p.color;
+      X.beginPath();
+      X.ellipse(0, 0, p.r, p.r * 0.5, 0, 0, Math.PI * 2);
+      X.fill();
+      X.restore();
+    } else {
+      X.fillStyle = p.color;
+      X.beginPath();
+      X.arc(p.x, p.y, p.r * alpha, 0, Math.PI * 2);
+      X.fill();
+    }
+  }
+  X.globalAlpha = 1;
+
+  // Конфетти
+  for (const c of confetti) {
+    X.save();
+    X.translate(c.x, c.y);
+    X.rotate(c.rot);
+    X.fillStyle = c.color;
+    X.globalAlpha = Math.min(1, c.life / 30);
+    X.fillRect(-c.r / 2, -c.r / 4, c.r, c.r / 2);
+    X.restore();
+  }
+  X.globalAlpha = 1;
+
+  // Игрок
+  if (state !== 'over' || deathAnim < 30) {
+    drawPlayer();
+  }
+
+  // Всплывающие числа
+  for (const f of floats) {
+    const alpha = f.life / f.max;
+    X.globalAlpha = alpha;
+    X.font = `bold ${f.size}px Arial Black, Arial`;
+    X.textAlign = 'center';
+    X.lineWidth = 8;
+    X.strokeStyle = 'rgba(0,0,0,0.6)';
+    X.strokeText(f.text, f.x, f.y);
+    X.fillStyle = f.color;
+    X.fillText(f.text, f.x, f.y);
+  }
+  X.globalAlpha = 1;
+
+  // Комбо-индикатор
+  if (combo >= 3 && state === 'play') {
+    const pulse = 1 + Math.sin(time * 0.3) * 0.1;
+    X.save();
+    X.translate(W / 2, 320);
+    X.scale(pulse, pulse);
+    X.font = 'bold 72px Arial Black, Arial';
+    X.textAlign = 'center';
+    X.lineWidth = 12;
+    X.strokeStyle = 'rgba(0,0,0,0.7)';
+    const comboText = `COMBO x${combo}`;
+    X.strokeText(comboText, 0, 0);
+    X.fillStyle = combo >= 10 ? '#ff1744' : combo >= 5 ? '#ffd600' : '#fff';
+    X.fillText(comboText, 0, 0);
+    X.restore();
+
+    // Таймер-бар
+    const barW = 300;
+    const barH = 14;
+    const progress = comboTimer / 120;
+    X.fillStyle = 'rgba(0,0,0,0.5)';
+    X.fillRect(W / 2 - barW / 2, 350, barW, barH);
+    X.fillStyle = progress > 0.3 ? '#ffd600' : '#ff1744';
+    X.fillRect(W / 2 - barW / 2, 350, barW * progress, barH);
+  }
+
+  // Счёт
+  X.font = 'bold 80px Arial Black, Arial';
+  X.textAlign = 'left';
+  X.lineWidth = 14;
+  X.strokeStyle = 'rgba(0,0,0,0.7)';
+  X.strokeText(`🍎 ${score}`, 50, 140);
+  X.fillStyle = '#fff';
+  X.fillText(`🍎 ${score}`, 50, 140);
+
+  // Скорость
+  if (state === 'play' && score > 10) {
+    X.font = 'bold 36px Arial';
+    X.textAlign = 'left';
+    X.lineWidth = 6;
+    const spdText = `⚡ x${(speed / BASE_SPEED).toFixed(1)}`;
+    X.strokeText(spdText, 55, 195);
+    X.fillStyle = '#ffeb3b';
+    X.fillText(spdText, 55, 195);
+  }
+
+  // Экраны состояний
+  if (state === 'title') drawTitle();
+  if (state === 'over') drawGameOver();
+
+  X.restore();
+}
+
+function drawFence() {
+  const fy = FENCE_Y;
+  const fh = FENCE_H;
+
+  // Столбики
+  const spacing = 140;
+  const offset = -(worldX % spacing);
+  for (let x = offset - spacing; x < W + spacing; x += spacing) {
+    // Столб
+    X.fillStyle = '#6d4c41';
+    X.fillRect(x, fy - fh, 22, fh + 30);
+
+    // Текстура дерева
+    X.fillStyle = '#5d4037';
+    X.fillRect(x + 14, fy - fh, 8, fh + 30);
+
+    // Наконечник
+    X.fillStyle = '#8d6e63';
+    X.beginPath();
+    X.moveTo(x - 3, fy - fh);
+    X.lineTo(x + 11, fy - fh - 25);
+    X.lineTo(x + 25, fy - fh);
+    X.fill();
+  }
+
+  // Рейки
+  X.fillStyle = '#8d6e63';
+  X.fillRect(0, fy - fh + 15, W, 22);
+  X.fillRect(0, fy - fh + 75, W, 22);
+  X.fillRect(0, fy - fh + 135, W, 22);
+
+  // Тени на рейках
+  X.fillStyle = 'rgba(0,0,0,0.15)';
+  X.fillRect(0, fy - fh + 33, W, 6);
+  X.fillRect(0, fy - fh + 93, W, 6);
+  X.fillRect(0, fy - fh + 153, W, 6);
+
+  // Верхняя подсветка
+  X.fillStyle = 'rgba(255,255,255,0.15)';
+  X.fillRect(0, fy - fh + 15, W, 5);
+  X.fillRect(0, fy - fh + 75, W, 5);
+  X.fillRect(0, fy - fh + 135, W, 5);
+}
+
+function drawTree(t) {
+  const tx = t.x - worldX;
+  const crownR = t.crownR;
+  if (tx + crownR < -100 || tx - crownR > W + 100) return;
+
+  const ty = GROUND_Y + 10;
+  const th = t.trunkH;
+  const tw = t.trunkW;
+
+  // Тень
+  X.fillStyle = 'rgba(0,0,0,0.15)';
+  X.beginPath();
+  X.ellipse(tx, ty + 10, tw * 2, 15, 0, 0, Math.PI * 2);
+  X.fill();
+
+  // Ствол
+  const trunkGrad = X.createLinearGradient(tx - tw / 2, 0, tx + tw / 2, 0);
+  trunkGrad.addColorStop(0, '#6d4c41');
+  trunkGrad.addColorStop(0.5, '#8d6e63');
+  trunkGrad.addColorStop(1, '#5d4037');
+  X.fillStyle = trunkGrad;
+  X.beginPath();
+  X.moveTo(tx - tw / 2, ty);
+  X.lineTo(tx - tw / 3, ty - th);
+  X.lineTo(tx + tw / 3, ty - th);
+  X.lineTo(tx + tw / 2, ty);
+  X.fill();
+
+  // Ветки
+  X.strokeStyle = '#5d4037';
+  X.lineWidth = 12;
+  X.lineCap = 'round';
+  const sway = Math.sin(t.sway) * 5;
+  X.beginPath();
+  X.moveTo(tx, ty - th + 40);
+  X.quadraticCurveTo(tx - 50, ty - th - 10 + sway, tx - 70, ty - th - 40 + sway);
+  X.moveTo(tx, ty - th + 40);
+  X.quadraticCurveTo(tx + 50, ty - th - 15 - sway, tx + 75, ty - th - 45 - sway);
+  X.stroke();
+
+  // Крона (много слоёв)
+  const cy = ty - th - 30;
+  const greens = ['#1b5e20', '#2e7d32', '#388e3c', '#43a047', '#4caf50'];
+  const offsets = [
+    [0, 0, 1],
+    [-crownR * 0.35, crownR * 0.1, 0.7],
+    [crownR * 0.35, crownR * 0.05, 0.75],
+    [0, -crownR * 0.3, 0.65],
+    [-crownR * 0.15, crownR * 0.3, 0.6],
+    [crownR * 0.2, crownR * 0.3, 0.55]
+  ];
+  for (let i = 0; i < offsets.length; i++) {
+    const [ox, oy, sc] = offsets[i];
+    const s = Math.sin(t.sway + i) * 4;
+    X.fillStyle = greens[i % greens.length];
+    X.beginPath();
+    X.arc(tx + ox + s, cy + oy, crownR * sc, 0, Math.PI * 2);
+    X.fill();
+  }
+
+  // Блики
+  X.fillStyle = 'rgba(255,255,255,0.12)';
+  X.beginPath();
+  X.arc(tx - crownR * 0.25, cy - crownR * 0.3, crownR * 0.4, 0, Math.PI * 2);
+  X.fill();
+
+  // Яблоки
+  for (const a of t.apples) {
+    if (a.eaten) continue;
+    let scale = 1;
+    if (a.pop > 0) scale = 1 + (a.pop / 15) * 0.4;
+
+    const ax = tx + a.ox;
+    const ay = cy + a.oy + Math.sin(t.sway + a.ox * 0.05) * 5;
+    const ar = 22 * scale;
+
+    X.save();
+    X.translate(ax, ay);
+
+    // Свечение
+    const glow = X.createRadialGradient(0, 0, ar * 0.5, 0, 0, ar * 2);
+    glow.addColorStop(0, 'rgba(244,67,54,0.3)');
+    glow.addColorStop(1, 'rgba(244,67,54,0)');
+    X.fillStyle = glow;
+    X.beginPath();
+    X.arc(0, 0, ar * 2, 0, Math.PI * 2);
+    X.fill();
+
+    // Тень яблока
+    X.fillStyle = 'rgba(0,0,0,0.2)';
+    X.beginPath();
+    X.ellipse(2, ar + 4, ar * 0.7, ar * 0.3, 0, 0, Math.PI * 2);
+    X.fill();
+
+    // Яблоко
+    const ag = X.createRadialGradient(-ar * 0.3, -ar * 0.3, ar * 0.1, 0, 0, ar);
+    ag.addColorStop(0, '#ff8a80');
+    ag.addColorStop(0.4, '#ef5350');
+    ag.addColorStop(0.8, '#e53935');
+    ag.addColorStop(1, '#b71c1c');
+    X.fillStyle = ag;
+    X.beginPath();
+    X.arc(0, 0, ar, 0, Math.PI * 2);
+    X.fill();
+
+    // Форма яблока (немного сплюснутое)
+    X.fillStyle = ag;
+    X.beginPath();
+    X.ellipse(0, ar * 0.1, ar, ar * 0.9, 0, 0, Math.PI * 2);
+    X.fill();
+
+    // Блик
+    X.fillStyle = 'rgba(255,255,255,0.55)';
+    X.beginPath();
+    X.ellipse(-ar * 0.3, -ar * 0.35, ar * 0.25, ar * 0.35, -0.6, 0, Math.PI * 2);
+    X.fill();
+    X.fillStyle = 'rgba(255,255,255,0.25)';
+    X.beginPath();
+    X.ellipse(-ar * 0.15, -ar * 0.5, ar * 0.12, ar * 0.15, -0.5, 0, Math.PI * 2);
+    X.fill();
+
+    // Впадина сверху
+    X.fillStyle = 'rgba(0,0,0,0.15)';
+    X.beginPath();
+    X.ellipse(0, -ar * 0.8, ar * 0.3, ar * 0.15, 0, 0, Math.PI * 2);
+    X.fill();
+
+    // Хвостик
+    X.strokeStyle = '#4e342e';
+    X.lineWidth = 5;
+    X.lineCap = 'round';
+    X.beginPath();
+    X.moveTo(0, -ar * 0.85);
+    X.quadraticCurveTo(5, -ar * 1.3, 12, -ar * 1.25);
+    X.stroke();
+
+    // Листик
+    X.fillStyle = '#43a047';
+    X.beginPath();
+    X.ellipse(18, -ar * 1.1, 14, 7, 0.5, 0, Math.PI * 2);
+    X.fill();
+    X.strokeStyle = '#2e7d32';
+    X.lineWidth = 2;
+    X.beginPath();
+    X.moveTo(8, -ar * 1.15);
+    X.lineTo(28, -ar * 1.05);
+    X.stroke();
+
+    X.restore();
+  }
+}
+
+function drawPlayer() {
+  const px = P.x + P.w / 2;
+  const py = P.y;
+  const frame = P.frame;
+  const running = P.onGround || P.onFence;
+  const eating = P.eating > 0;
+  const airborne = !P.onGround && !P.onFence;
+
+  X.save();
+  X.translate(px, py + P.h / 2);
+
+  // Наклон
+  if (airborne) {
+    P.tilt += (0.15 - P.tilt) * 0.1;
+  }
+  X.rotate(P.tilt);
+
+  // Сквош/растяжение
+  X.scale(1 / P.squash, P.squash);
+
+  // Тень
+  X.fillStyle = 'rgba(0,0,0,0.25)';
+  X.beginPath();
+  X.ellipse(0, P.h / 2 + 5, 40, 12, 0, 0, Math.PI * 2);
+  X.fill();
+
+  const legPhase = running ? Math.sin(frame * Math.PI / 2) * 30 : 0;
+  const armPhase = running ? Math.sin(frame * Math.PI / 2) * 35 : 0;
+
+  // === Ноги ===
+  X.strokeStyle = '#1565c0';
+  X.lineWidth = 16;
+  X.lineCap = 'round';
+
+  // Левая нога
+  X.beginPath();
+  X.moveTo(-12, 25);
+  if (airborne) {
+    X.lineTo(-20, 50);
+  } else {
+    X.lineTo(-12 + legPhase, 55);
+  }
+  X.stroke();
+
+  // Правая нога
+  X.beginPath();
+  X.moveTo(12, 25);
+  if (airborne) {
+    X.lineTo(22, 48);
+  } else {
+    X.lineTo(12 - legPhase, 55);
+  }
+  X.stroke();
+
+  // Кроссовки
+  X.fillStyle = '#ff1744';
+  const shoeL = airborne ? -18 : legPhase;
+  const shoeR = airborne ? 20 : -legPhase;
+  // Левый
+  X.beginPath();
+  X.roundRect(-24 + shoeL, 50, 26, 14, 6);
+  X.fill();
+  X.fillStyle = '#fff';
+  X.fillRect(-24 + shoeL, 58, 26, 5);
+  // Правый
+  X.fillStyle = '#ff1744';
+  X.beginPath();
+  X.roundRect(-2 + shoeR, 50, 26, 14, 6);
+  X.fill();
+  X.fillStyle = '#fff';
+  X.fillRect(-2 + shoeR, 58, 26, 5);
+
+  // === Тело ===
+  const bodyGrad = X.createLinearGradient(-28, -15, 28, 45);
+  bodyGrad.addColorStop(0, '#ff8f00');
+  bodyGrad.addColorStop(0.5, '#ff6f00');
+  bodyGrad.addColorStop(1, '#e65100');
+  X.fillStyle = bodyGrad;
+  X.beginPath();
+  X.roundRect(-28, -18, 56, 55, 12);
+  X.fill();
+
+  // Молния на куртке
+  X.strokeStyle = '#fff59d';
+  X.lineWidth = 4;
+  X.beginPath();
+  X.moveTo(0, -12);
+  X.lineTo(-3, 5);
+  X.lineTo(3, 5);
+  X.lineTo(0, 22);
+  X.stroke();
+
+  // Карманы
+  X.fillStyle = 'rgba(0,0,0,0.15)';
+  X.beginPath();
+  X.roundRect(-24, 15, 16, 14, 4);
+  X.fill();
+  X.beginPath();
+  X.roundRect(8, 15, 16, 14, 4);
+  X.fill();
+
+  // === Руки ===
+  X.strokeStyle = '#ff6f00';
+  X.lineWidth = 14;
+  X.lineCap = 'round';
+
+  // Левая
+  X.beginPath();
+  X.moveTo(-24, -8);
+  if (airborne) {
+    X.lineTo(-42, -28);
+  } else {
+    X.lineTo(-24 + armPhase, 12);
+  }
+  X.stroke();
+
+  // Правая
+  X.beginPath();
+  X.moveTo(24, -8);
+  if (airborne) {
+    X.lineTo(42, -32);
+  } else {
+    X.lineTo(24 - armPhase, 12);
+  }
+  X.stroke();
+
+  // Кисти
+  X.fillStyle = '#ffcc80';
+  const handL = airborne ? [-42, -28] : [-24 + armPhase, 12];
+  const handR = airborne ? [42, -32] : [24 - armPhase, 12];
+  X.beginPath();
+  X.arc(handL[0], handL[1], 9, 0, Math.PI * 2);
+  X.fill();
+  X.beginPath();
+  X.arc(handR[0], handR[1], 9, 0, Math.PI * 2);
+  X.fill();
+
+  // === Голова ===
+  const headY = -55;
+
+  // Шея
+  X.fillStyle = '#ffcc80';
+  X.fillRect(-8, headY + 18, 16, 18);
+
+  // Голова
+  const headGrad = X.createRadialGradient(-8, headY - 8, 5, 0, headY, 32);
+  headGrad.addColorStop(0, '#ffe0b2');
+  headGrad.addColorStop(0.7, '#ffcc80');
+  headGrad.addColorStop(1, '#ffb74d');
+  X.fillStyle = headGrad;
+  X.beginPath();
+  X.arc(0, headY, 32, 0, Math.PI * 2);
+  X.fill();
+
+  // Волосы (стильные)
+  X.fillStyle = '#3e2723';
+  X.beginPath();
+  X.arc(0, headY - 5, 33, Math.PI * 0.95, Math.PI * 0.05);
+  X.fill();
+  // Чёлка
+  X.beginPath();
+  X.moveTo(-28, headY - 12);
+  X.quadraticCurveTo(-10, headY - 35, 15, headY - 28);
+  X.quadraticCurveTo(5, headY - 20, -5, headY - 18);
+  X.quadraticCurveTo(-18, headY - 16, -28, headY - 12);
+  X.fill();
+  // Хвостики/взъерошенность
+  X.beginPath();
+  X.moveTo(-30, headY - 15);
+  X.lineTo(-45, headY - 35);
+  X.lineTo(-35, headY - 25);
+  X.lineTo(-42, headY - 40);
+  X.lineTo(-28, headY - 22);
+  X.fill();
+  X.beginPath();
+  X.moveTo(30, headY - 15);
+  X.lineTo(45, headY - 35);
+  X.lineTo(35, headY - 25);
+  X.lineTo(42, headY - 40);
+  X.lineTo(28, headY - 22);
+  X.fill();
+
+  // Уши
+  X.fillStyle = '#ffcc80';
+  X.beginPath();
+  X.arc(-32, headY + 5, 8, 0, Math.PI * 2);
+  X.fill();
+  X.beginPath();
+  X.arc(32, headY + 5, 8, 0, Math.PI * 2);
+  X.fill();
+
+  // Глаза
+  const blinking = P.blink > 0;
+  if (blinking) {
+    X.strokeStyle = '#3e2723';
+    X.lineWidth = 4;
+    X.beginPath();
+    X.moveTo(-14, headY + 2);
+    X.lineTo(-4, headY + 2);
+    X.moveTo(5, headY + 2);
+    X.lineTo(15, headY + 2);
+    X.stroke();
+  } else {
+    // Белки
+    X.fillStyle = '#fff';
+    X.beginPath();
+    X.ellipse(-9, headY, 9, 11, 0, 0, Math.PI * 2);
+    X.fill();
+    X.beginPath();
+    X.ellipse(10, headY, 9, 11, 0, 0, Math.PI * 2);
+    X.fill();
+
+    // Зрачки
+    const lookX = eating ? 0 : 2;
+    X.fillStyle = '#3e2723';
+    X.beginPath();
+    X.arc(-9 + lookX, headY + 1, 5.5, 0, Math.PI * 2);
+    X.fill();
+    X.beginPath();
+    X.arc(10 + lookX, headY + 1, 5.5, 0, Math.PI * 2);
+    X.fill();
+
+    // Блики
+    X.fillStyle = '#fff';
+    X.beginPath();
+    X.arc(-7 + lookX, headY - 2, 2.5, 0, Math.PI * 2);
+    X.fill();
+    X.beginPath();
+    X.arc(12 + lookX, headY - 2, 2.5, 0, Math.PI * 2);
+    X.fill();
+    X.beginPath();
+    X.arc(-11 + lookX, headY + 4, 1.5, 0, Math.PI * 2);
+    X.fill();
+    X.beginPath();
+    X.arc(8 + lookX, headY + 4, 1.5, 0, Math.PI * 2);
+    X.fill();
+
+    // Ресницы-брови (энергичные)
+    X.strokeStyle = '#3e2723';
+    X.lineWidth = 4;
+    X.lineCap = 'round';
+    X.beginPath();
+    X.moveTo(-16, headY - 14);
+    X.lineTo(-2, headY - 17);
+    X.moveTo(4, headY - 17);
+    X.lineTo(18, headY - 14);
+    X.stroke();
+  }
+
+  // Рот
+  if (eating) {
+    const chew = Math.sin(P.eating * 1.2) * 4;
+    // Открытый рот
+    X.fillStyle = '#c62828';
+    X.beginPath();
+    X.ellipse(2, headY + 16, 10, 8 + chew * 0.5, 0, 0, Math.PI * 2);
+    X.fill();
+    // Язык
+    X.fillStyle = '#e57373';
+    X.beginPath();
+    X.ellipse(2, headY + 19, 6, 4, 0, 0, Math.PI * 2);
+    X.fill();
+    // Яблоко во рту
+    X.fillStyle = '#ef5350';
+    X.beginPath();
+    X.arc(2, headY + 14, 6, 0, Math.PI * 2);
+    X.fill();
+    // Крошки
+    X.fillStyle = '#fff59d';
+    X.beginPath();
+    X.arc(-6, headY + 12, 2, 0, Math.PI * 2);
+    X.arc(10, headY + 15, 2, 0, Math.PI * 2);
+    X.fill();
+  } else if (airborne) {
+    // Открытый рот (удивление/кайф)
+    X.fillStyle = '#c62828';
+    X.beginPath();
+    X.ellipse(2, headY + 16, 7, 9, 0, 0, Math.PI * 2);
+    X.fill();
+    X.fillStyle = '#e57373';
+    X.beginPath();
+    X.ellipse(2, headY + 19, 4, 5, 0, 0, Math.PI * 2);
+    X.fill();
+  } else {
+    // Улыбка
+    X.strokeStyle = '#3e2723';
+    X.lineWidth = 4;
+    X.lineCap = 'round';
+    X.beginPath();
+    X.arc(2, headY + 10, 12, 0.25, Math.PI - 0.25);
+    X.stroke();
+    // Зубы
+    X.fillStyle = '#fff';
+    X.beginPath();
+    X.arc(2, headY + 10, 10, 0.3, Math.PI - 0.3);
+    X.fill();
+  }
+
+  // Румянец
+  X.fillStyle = 'rgba(255, 138, 128, 0.45)';
+  X.beginPath();
+  X.ellipse(-20, headY + 10, 8, 5, 0, 0, Math.PI * 2);
+  X.fill();
+  X.beginPath();
+  X.ellipse(24, headY + 10, 8, 5, 0, 0, Math.PI * 2);
+  X.fill();
+
+  // Повязка/бандана
+  X.fillStyle = '#2196f3';
+  X.beginPath();
+  X.roundRect(-34, headY - 22, 68, 12, 5);
+  X.fill();
+  X.fillStyle = '#1976d2';
+  X.beginPath();
+  X.roundRect(-34, headY - 14, 68, 4, 2);
+  X.fill();
+  // Хвостик банданы
+  X.fillStyle = '#2196f3';
+  X.beginPath();
+  X.moveTo(-34, headY - 18);
+  X.lineTo(-50, headY - 8 + Math.sin(time * 0.15) * 5);
+  X.lineTo(-34, headY - 10);
+  X.fill();
+
+  X.restore();
+}
+
+function drawTitle() {
+  // Затемнение
+  X.fillStyle = 'rgba(0,0,0,0.55)';
+  X.fillRect(0, 0, W, H);
+
+  const bounce = Math.sin(time * 0.08) * 15;
+
+  // Заголовок
+  X.save();
+  X.translate(W / 2, H * 0.32 + bounce);
+  X.rotate(Math.sin(time * 0.04) * 0.05);
+
+  X.font = 'bold 110px Arial Black, Arial';
+  X.textAlign = 'center';
+  X.lineWidth = 20;
+  X.strokeStyle = '#4e342e';
+  X.strokeText('🍎', 0, -80);
+
+  X.font = 'bold 95px Arial Black, Arial';
+  X.lineWidth = 18;
+  X.strokeStyle = '#b71c1c';
+  X.strokeText('ЯБЛОЧНЫЙ', 0, 30);
+  const titleGrad = X.createLinearGradient(0, -40, 0, 60);
+  titleGrad.addColorStop(0, '#ffeb3b');
+  titleGrad.addColorStop(0.5, '#ff9800');
+  titleGrad.addColorStop(1, '#f44336');
+  X.fillStyle = titleGrad;
+  X.fillText('ЯБЛОЧНЫЙ', 0, 30);
+
+  X.font = 'bold 95px Arial Black, Arial';
+  X.lineWidth = 18;
+  X.strokeStyle = '#1565c0';
+  X.strokeText('БЕГУН', 0, 140);
+  const t2 = X.createLinearGradient(0, 80, 0, 160);
+  t2.addColorStop(0, '#81d4fa');
+  t2.addColorStop(1, '#29b6f6');
+  X.fillStyle = t2;
+  X.fillText('БЕГУН', 0, 140);
+
+  X.restore();
+
+  // Рекорд
+  if (bestScore > 0) {
+    X.font = 'bold 48px Arial';
+    X.textAlign = 'center';
+    X.lineWidth = 8;
+    X.strokeStyle = 'rgba(0,0,0,0.7)';
+    X.strokeText(`🏆 Рекорд: ${bestScore}`, W / 2, H * 0.55);
+    X.fillStyle = '#ffd600';
+    X.fillText(`🏆 Рекорд: ${bestScore}`, W / 2, H * 0.55);
+  }
+
+  // Кнопка-подсказка
+  const pulse = 1 + Math.sin(time * 0.12) * 0.08;
+  X.save();
+  X.translate(W / 2, H * 0.7);
+  X.scale(pulse, pulse);
+
+  X.fillStyle = 'rgba(255,255,255,0.95)';
+  X.beginPath();
+  X.roundRect(-260, -55, 520, 110, 55);
+  X.fill();
+  X.strokeStyle = '#f44336';
+  X.lineWidth = 8;
+  X.beginPath();
+  X.roundRect(-260, -55, 520, 110, 55);
+  X.stroke();
+
+  X.font = 'bold 52px Arial Black, Arial';
+  X.textAlign = 'center';
+  X.fillStyle = '#d32f2f';
+  X.fillText('НАЖМИ, ЧТОБЫ БЕЖАТЬ', 0, 18);
+  X.restore();
+
+  // Управление
+  X.font = '36px Arial';
+  X.textAlign = 'center';
+  X.fillStyle = 'rgba(255,255,255,0.85)';
+  X.fillText('Тап / Пробел — прыжок', W / 2, H * 0.78);
+  X.fillText('Ешь яблоки, набивай комбо!', W / 2, H * 0.82);
+
+  // Плавающие яблоки декор
+  for (let i = 0; i < 5; i++) {
+    const ax = W * 0.15 + i * W * 0.18;
+    const ay = H * 0.48 + Math.sin(time * 0.06 + i * 1.3) * 25;
+    const ar = 28;
+    X.fillStyle = '#f44336';
+    X.beginPath();
+    X.arc(ax, ay, ar, 0, Math.PI * 2);
+    X.fill();
+    X.fillStyle = 'rgba(255,255,255,0.4)';
+    X.beginPath();
+    X.ellipse(ax - 8, ay - 8, 8, 10, -0.5, 0, Math.PI * 2);
+    X.fill();
+    X.strokeStyle = '#4e342e';
+    X.lineWidth = 4;
+    X.beginPath();
+    X.moveTo(ax, ay - ar);
+    X.quadraticCurveTo(ax + 5, ay - ar - 15, ax + 12, ay - ar - 12);
+    X.stroke();
+    X.fillStyle = '#4caf50';
+    X.beginPath();
+    X.ellipse(ax + 18, ay - ar - 8, 10, 5, 0.5, 0, Math.PI * 2);
+    X.fill();
+  }
+}
+
+function drawGameOver() {
+  const alpha = Math.min(1, deathAnim / 30);
+  X.fillStyle = `rgba(0,0,0,${0.65 * alpha})`;
+  X.fillRect(0, 0, W, H);
+
+  if (deathAnim < 15) return;
+
+  const slide = Math.max(0, 1 - (deathAnim - 15) / 20);
+  const yOffset = slide * 100;
+
+  // Карточка
+  X.save();
+  X.translate(W / 2, H * 0.42 + yOffset);
+  X.globalAlpha = alpha;
+
+  X.fillStyle = '#fff';
+  X.beginPath();
+  X.roundRect(-400, -250, 800, 500, 40);
+  X.fill();
+  X.strokeStyle = '#f44336';
+  X.lineWidth = 10;
+  X.beginPath();
+  X.roundRect(-400, -250, 800, 500, 40);
+  X.stroke();
+
+  // Заголовок
+  X.font = 'bold 80px Arial Black, Arial';
+  X.textAlign = 'center';
+  X.fillStyle = '#d32f2f';
+  X.fillText('СЪЕЛ ВСЁ!', 0, -140);
+
+  // Счёт
+  X.font = 'bold 130px Arial Black, Arial';
+  X.fillStyle = '#ff6f00';
+  X.lineWidth = 12;
+  X.strokeStyle = '#e65100';
+  X.strokeText(`🍎 ${score}`, 0, 0);
+  X.fillText(`🍎 ${score}`, 0, 0);
+
+  // Макс комбо
+  X.font = 'bold 48px Arial';
+  X.fillStyle = '#666';
+  X.fillText(`Макс комбо: x${maxCombo}`, 0, 80);
+
+  // Новый рекорд
+  if (newRecord) {
+    const flash = Math.sin(time * 0.3) > 0;
+    X.font = 'bold 55px Arial Black, Arial';
+    X.fillStyle = flash ? '#ffd600' : '#ff9800';
+    X.lineWidth = 8;
+    X.strokeStyle = '#f57f17';
+    const rt = '🏆 НОВЫЙ РЕКОРД! 🏆';
+    X.strokeText(rt, 0, 170);
+    X.fillText(rt, 0, 170);
+  } else if (bestScore > 0) {
+    X.font = '42px Arial';
+    X.fillStyle = '#999';
+    X.fillText(`Рекорд: ${bestScore}`, 0, 170);
+  }
+
+  X.restore();
+
+  // Кнопка рестарта
+  if (deathAnim > 60) {
+    const pulse = 1 + Math.sin(time * 0.12) * 0.06;
+    X.save();
+    X.translate(W / 2, H * 0.72);
+    X.scale(pulse, pulse);
+    X.globalAlpha = alpha;
+
+    X.fillStyle = '#4caf50';
+    X.beginPath();
+    X.roundRect(-240, -55, 480, 110, 55);
+    X.fill();
+    X.strokeStyle = '#2e7d32';
+    X.lineWidth = 8;
+    X.beginPath();
+    X.roundRect(-240, -55, 480, 110, 55);
+    X.stroke();
+
+    X.font = 'bold 52px Arial Black, Arial';
+    X.textAlign = 'center';
+    X.fillStyle = '#fff';
+    X.fillText('ЕЩЁ РАЗ! 💪', 0, 18);
+    X.restore();
+  }
+
+  X.globalAlpha = 1;
+}
+
+// === Главный цикл ===
+function loop() {
+  update();
+
+  // Рекорд
+  if (state === 'over' && deathAnim === 1) {
+    if (score > bestScore) {
+      bestScore = score;
+      newRecord = true;
+    }
+  }
+
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>

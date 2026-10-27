@@ -8,7 +8,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
 body{display:flex;align-items:center;justify-content:center}
-canvas{display:block;max-width:100vw;max-height:100vh;aspect-ratio:9/16}
+canvas{display:block;max-width:100vw;max-height:100vh;aspect-ratio:9/16;cursor:pointer}
 </style>
 </head>
 <body>
@@ -16,24 +16,28 @@ canvas{display:block;max-width:100vw;max-height:100vh;aspect-ratio:9/16}
 <script>
 const C=document.getElementById('c'),X=C.getContext('2d'),W=1080,H=1920;
 let time=0,shake=0,flash=0,flashCol='#fff';
+let started=false;
 
 // ===== AUDIO =====
-let AC=null,audioOn=false;
+let AC=null;
 function initAudio(){
-  if(audioOn)return;audioOn=true;
-  AC=new(window.AudioContext||window.webkitAudioContext)();
-  const BPM=130,BL=60/BPM;let step=0,startT=AC.currentTime+0.1;
-  function kick(t){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(40,t+.12);g.gain.setValueAtTime(.9,t);g.gain.exponentialRampToValueAtTime(.01,t+.15);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+.16);}
-  function hat(t){const b=AC.createBuffer(1,AC.sampleRate*.04,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=9000;const g=AC.createGain();g.gain.value=.2;s.connect(f).connect(g).connect(AC.destination);s.start(t);s.stop(t+.05);}
-  function snare(t){const b=AC.createBuffer(1,AC.sampleRate*.12,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*.025));const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=2500;const g=AC.createGain();g.gain.value=.4;s.connect(f).connect(g).connect(AC.destination);s.start(t);}
-  function bass(t,f,dur){const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(500,t);lp.frequency.exponentialRampToValueAtTime(120,t+dur);o.type='sawtooth';o.frequency.value=f;g.gain.setValueAtTime(.4,t);g.gain.exponentialRampToValueAtTime(.01,t+dur);o.connect(lp).connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);}
-  function pluck(t,f){const o=AC.createOscillator(),g=AC.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.01,t+.2);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+.22);}
-  function pad(t,f,dur){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.08,t);g.gain.linearRampToValueAtTime(.12,t+.1);g.gain.linearRampToValueAtTime(.01,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);}
-  const kP=[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],sP=[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],hP=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
-  const bF=[65.41,58.27,49,55];
-  const pN=[[523,0,659,0,784,0,659,0,523,0,440,0,523,0,0,0],[494,0,587,0,698,0,587,0,494,0,440,0,494,0,0,0],[440,0,523,0,659,0,523,0,440,0,392,0,440,0,0,0],[494,0,587,0,740,0,587,0,494,0,440,0,494,0,523,0]];
-  function sched(){if(!AC)return;const now=AC.currentTime;while(step*BL/4<now+.1-startT){const t=startT+step*BL/4,s=step%16,bar=Math.floor(step/16)%4;if(kP[s])kick(t);if(sP[s])snare(t);if(hP[s])hat(t);if(s%4===0)bass(t,bF[bar],BL*.9);const n=pN[bar][s];if(n)pluck(t,n);if(s===0)pad(t,bF[bar]*4,BL*4);step++;}}
-  setInterval(sched,50);
+  if(AC)return;
+  try{
+    AC=new(window.AudioContext||window.webkitAudioContext)();
+    if(AC.state==='suspended')AC.resume();
+    const BPM=130,BL=60/BPM;let step=0,startT=AC.currentTime+0.1;
+    function kick(t){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(140,t);o.frequency.exponentialRampToValueAtTime(40,t+.12);g.gain.setValueAtTime(.9,t);g.gain.exponentialRampToValueAtTime(.01,t+.15);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+.16);}
+    function hat(t){const b=AC.createBuffer(1,AC.sampleRate*.04,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=9000;const g=AC.createGain();g.gain.value=.18;s.connect(f).connect(g).connect(AC.destination);s.start(t);s.stop(t+.05);}
+    function snare(t){const b=AC.createBuffer(1,AC.sampleRate*.12,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*.025));const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=2500;const g=AC.createGain();g.gain.value=.4;s.connect(f).connect(g).connect(AC.destination);s.start(t);}
+    function bass(t,f,dur){const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(500,t);lp.frequency.exponentialRampToValueAtTime(120,t+dur);o.type='sawtooth';o.frequency.value=f;g.gain.setValueAtTime(.4,t);g.gain.exponentialRampToValueAtTime(.01,t+dur);o.connect(lp).connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);}
+    function pluck(t,f){const o=AC.createOscillator(),g=AC.createGain();o.type='triangle';o.frequency.value=f;g.gain.setValueAtTime(.25,t);g.gain.exponentialRampToValueAtTime(.01,t+.2);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+.22);}
+    function pad(t,f,dur){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.value=f;g.gain.setValueAtTime(.07,t);g.gain.linearRampToValueAtTime(.1,t+.1);g.gain.linearRampToValueAtTime(.01,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);}
+    const kP=[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],sP=[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],hP=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
+    const bF=[65.41,58.27,49,55];
+    const pN=[[523,0,659,0,784,0,659,0,523,0,440,0,523,0,0,0],[494,0,587,0,698,0,587,0,494,0,440,0,494,0,0,0],[440,0,523,0,659,0,523,0,440,0,392,0,440,0,0,0],[494,0,587,0,740,0,587,0,494,0,440,0,494,0,523,0]];
+    function sched(){if(!AC)return;const now=AC.currentTime;while(step*BL/4<now+.1-startT){const t=startT+step*BL/4,s=step%16,bar=Math.floor(step/16)%4;if(kP[s])kick(t);if(sP[s])snare(t);if(hP[s])hat(t);if(s%4===0)bass(t,bF[bar],BL*.9);const n=pN[bar][s];if(n)pluck(t,n);if(s===0)pad(t,bF[bar]*4,BL*4);step++;}}
+    setInterval(sched,50);
+  }catch(e){console.log('Audio error:',e);}
 }
 
 // ===== SCENARIOS =====
@@ -41,22 +45,17 @@ const SCENES=[
   {dur:260,title:'А-А-АПЧХИ!',sub:'Коля чихнул —\nвирусы полетели!',col:'#ff7043'},
   {dur:320,title:'ЗАРАЖЕНИЕ',sub:'Вирусы прилипают\nк клеткам носа',col:'#ff1744'},
   {dur:300,title:'РАЗМНОЖЕНИЕ',sub:'Они делятся\nи их становится больше',col:'#ff9100'},
-  {dur:300,title:'ИММУНИТЕТ',sub:'Лейкоциты-воины\nвышли на охоту',col:'#29b6f6'},
-  {dur:360,title:'БИТВА!',sub:'Организм сражается\nза здоровье Коли',col:'#29b6f6'},
-  {dur:340,title:'ПОПРАВИЛСЯ!',sub:'Коля выздоровел! 🎉\nМожно на улицу!',col:'#66bb6a'},
+  {dur:300,title:'ИММУНИТЕТ',sub:'Лейкоциты-воины\nвышли на охоту',col:'#00bcd4'},
+  {dur:360,title:'БИТВА!',sub:'Организм сражается\nза здоровье Коли',col:'#00bcd4'},
+  {dur:340,title:'ПОПРАВИЛСЯ!',sub:'Коля выздоровел!\nМожно на улицу!',col:'#66bb6a'},
 ];
-let scene=0,sceneT=0,killCount=0,cellInfected=0,sneezeCount=0;
+let scene=0,sceneT=0,killCount=0,cellInfected=0;
 
-// ===== STATE =====
+// ===== BOY =====
 let boy={
   x:W/2,y:H*.42,
-  // Анимация
-  sneezeT:0, shiverT:0, blink:0, mouthOpen:0,
-  fever:0, // 0..1 - температура
-  happy:0,
-  noseRed:0,
-  // Чихание частицы
-  sneezeParts:[]
+  sneezeT:0,shiverT:0,blink:0,
+  fever:0,happy:0,noseRed:0,mouthOpen:0
 };
 let viruses=[],cells=[],leukos=[],parts=[],floats=[];
 
@@ -73,7 +72,7 @@ function spawnCell(x,y){
 }
 function spawnLeuko(){
   leukos.push({x:boy.x+(Math.random()-.5)*300,y:H+40,vx:0,vy:-5-Math.random()*3,
-    r:14+Math.random()*8,hp:8,target:null,cd:0,angle:Math.random()*6.28,trail:[],hx:0,hy:0});
+    r:14+Math.random()*8,hp:8,target:null,cd:0,angle:Math.random()*6.28,trail:[],hx:boy.x,hy:boy.y});
 }
 function addP(x,y,n,col,sp,life){
   for(let i=0;i<n;i++){const a=Math.random()*6.28,s=Math.random()*sp;
@@ -85,9 +84,9 @@ function resetScene(s){
   scene=s;sceneT=0;
   shake=10;flash=20;flashCol=SCENES[s].col;
   parts.length=0;floats.length=0;
-  boy.sneezeT=0;boy.happy=0;
+  boy.sneezeT=0;boy.happy=0;boy.mouthOpen=0;
 
-  if(s===0){viruses.length=0;cells.length=0;leukos.length=0;cellInfected=0;killCount=0;sneezeCount=0;
+  if(s===0){viruses.length=0;cells.length=0;leukos.length=0;cellInfected=0;killCount=0;
     boy.fever=0.1;boy.noseRed=0.3;
     for(let i=0;i<12;i++)spawnCell();
     boy.sneezeT=60;
@@ -100,10 +99,10 @@ function resetScene(s){
     if(viruses.length<6)for(let i=0;i<6-viruses.length;i++)spawnVirus();
   }
   if(s===3){boy.fever=0.6;leukos.length=0;
-    for(let i=0;i<5;i++)setTimeout(()=>{spawnLeuko();leukos[leukos.length-1].hx=boy.x+(Math.random()-.5)*200;leukos[leukos.length-1].hy=boy.y+(Math.random()-.5)*200;},i*180);
+    for(let i=0;i<5;i++)setTimeout(()=>spawnLeuko(),i*180);
   }
   if(s===4){boy.fever=0.7;boy.shiverT=80;killCount=0;
-    if(!leukos.length)for(let i=0;i<5;i++){spawnLeuko();leukos[leukos.length-1].hx=boy.x;leukos[leukos.length-1].hy=boy.y;}
+    if(!leukos.length)for(let i=0;i<5;i++)spawnLeuko();
     if(viruses.length<8)for(let i=0;i<8-viruses.length;i++)spawnVirus();
   }
   if(s===5){boy.fever=0;boy.noseRed=0;boy.happy=1;boy.shiverT=0;
@@ -111,16 +110,16 @@ function resetScene(s){
     for(let i=0;i<60;i++)parts.push({x:Math.random()*W,y:-Math.random()*300,
       vx:(Math.random()-.5)*4,vy:2+Math.random()*5,life:150,max:150,
       r:4+Math.random()*8,color:`hsl(${Math.random()*360},90%,60%)`});
-    // Клетки здоровые
     for(const c of cells){c.infected=false;c.inf=0;c.hue=200+Math.random()*30;}
   }
 }
 
 function update(){
-  time++;sceneT++;
+  time++;
+  if(!started){return;}
+  sceneT++;
   if(shake>0)shake*=.92;if(flash>0)flash-=2.5;
 
-  // Boy animations
   boy.blink--;
   if(boy.blink<-Math.random()*120)boy.blink=8;
   if(boy.sneezeT>0)boy.sneezeT--;
@@ -133,17 +132,13 @@ function update(){
   const sc=SCENES[scene];
   if(sceneT>=sc.dur&&scene<SCENES.length-1){resetScene(scene+1);return;}
 
-  // === SCENES ===
   if(scene===0){
-    // Чихание!
     if(sceneT===60||sceneT===140||sceneT===200){
-      boy.sneezeT=40;boy.mouthOpen=1;sneezeCount++;
+      boy.sneezeT=40;boy.mouthOpen=1;
       shake=15;flash=10;flashCol='#fff';
-      addT(boy.x+120,boy.y-150,'АПЧХИ!','#fff',60);
-      // Выпускает вирусы
-      for(let i=0;i<4;i++)spawnVirus(boy.x+60,boy.y-60);
-      // Капли
-      for(let i=0;i<20;i++)parts.push({x:boy.x+60,y:boy.y-60,
+      addT(boy.x+140,boy.y-150,'АПЧХИ!','#fff',60);
+      for(let i=0;i<4;i++)spawnVirus(boy.x+80,boy.y-60);
+      for(let i=0;i<20;i++)parts.push({x:boy.x+80,y:boy.y-60,
         vx:3+Math.random()*6,vy:(Math.random()-.5)*4,
         life:40,max:40,r:3+Math.random()*5,color:'rgba(180,220,255,0.8)'});
     }
@@ -159,8 +154,7 @@ function update(){
       if(best){const dx=best.x-v.x,dy=best.y-v.y,d=Math.sqrt(dx*dx+dy*dy)||1;
         v.vx+=dx/d*.35;v.vy+=dy/d*.35;
         if(d<best.r+v.r*.5&&!best.infected){best.infected=true;best.inf=1;cellInfected++;
-          addP(v.x,v.y,6,`hsl(${v.hue},90%,60%)`,4,25);shake=5;
-          addT(best.x,best.y-20,'💥','#ff1744',35);}}
+          addP(v.x,v.y,6,`hsl(${v.hue},90%,60%)`,4,25);shake=5;}}
       v.vx*=.96;v.vy*=.96;v.x+=v.vx;v.y+=v.vy;
     }
     for(const c of cells){c.pulse+=.05;
@@ -168,15 +162,12 @@ function update(){
         if(c.inf>100&&!c.dying){c.dying=25;addP(c.x,c.y,10,`hsl(${c.hue},80%,60%)`,7,30);shake=8;}}
       if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}}
     if(sceneT%70===0&&viruses.length<8)spawnVirus();
-    boy.fever=Math.min(.5,.2+sceneT/scene*.3);
   }
 
   if(scene===2){
     for(const v of viruses){
       v.wobble+=.12;v.angle+=v.spin*1.5;
       v.x+=Math.sin(v.wobble)*1;v.y+=Math.cos(v.wobble*.8)*.8;
-      v.x+=v.vx*.3;v.y+=v.vy*.3;
-      // Держатся рядом с мальчиком
       const dx=boy.x-v.x,dy=boy.y-v.y,d=Math.sqrt(dx*dx+dy*dy);
       if(d>250){v.x+=dx/d*1.5;v.y+=dy/d*1.5;}
     }
@@ -191,7 +182,6 @@ function update(){
         if(c.inf>80&&!c.dying){c.dying=20;addP(c.x,c.y,8,'#ff5252',6,30);}}
       if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}}
     if(sceneT%60===0&&cells.length<8)spawnCell();
-    boy.fever=Math.min(.7,boy.fever+.002);
     boy.shiverT=30;
   }
 
@@ -269,8 +259,7 @@ function update(){
     if(sceneT%40===0&&cells.length<16)spawnCell();
     if(sceneT%90===0&&leukos.length<8)spawnLeuko();
     if(sceneT%20===0)parts.push({x:Math.random()*W,y:H+10,vx:(Math.random()-.5)*3,vy:-2-Math.random()*4,life:120,max:120,r:3+Math.random()*6,color:`hsl(${Math.random()*360},90%,60%)`});
-    // Коля радуется
-    if(sceneT%80===0){boy.mouthOpen=.8;addT(boy.x,boy.y-200,'🎉','#ffd600',50);}
+    if(sceneT%80===0){boy.mouthOpen=.8;addT(boy.x,boy.y-220,'🎉','#ffd600',50);}
   }
 }
 
@@ -279,50 +268,34 @@ function draw(){
   X.save();
   if(shake>.5)X.translate((Math.random()-.5)*shake*2,(Math.random()-.5)*shake*2);
 
-  // === ФОН ===
+  // ФОН
   const bg=X.createLinearGradient(0,0,0,H);
-  if(scene<=1){bg.addColorStop(0,'#87ceeb');bg.addColorStop(1,'#e0f7fa');}
+  if(scene<=1&&!started){bg.addColorStop(0,'#e3f2fd');bg.addColorStop(1,'#bbdefb');}
+  else if(scene<=1){bg.addColorStop(0,'#87ceeb');bg.addColorStop(1,'#e0f7fa');}
   else if(scene<=3){bg.addColorStop(0,'#64b5f6');bg.addColorStop(1,'#bbdefb');}
-  else if(scene===4){bg.addColorStop(0,'#42a5f5');bg.addColorStop(1:'#90caf9');}
+  else if(scene===4){bg.addColorStop(0,'#42a5f5');bg.addColorStop(1,'#90caf9');}
   else{bg.addColorStop(0,'#66bb6a');bg.addColorStop(1,'#c8e6c9');}
   X.fillStyle=bg;X.fillRect(0,0,W,H);
 
-  // Облака фона
   drawCloud(150,150,1.2);drawCloud(W-200,200,.9);drawCloud(W/2,100,1);
-
-  // Дом / комната (фон)
   drawRoom();
-
-  // === КОЛЯ ===
   drawBoy();
 
-  // Внутренности поверх (клетки, вирусы внутри тела)
-  X.save();
-  // Нарисуем "внутри" только в сценах 1+
-  if(scene>=1){
-    // Прямоугольник "внутри тела" (прозрачное окно)
+  // Внутри тела (клетки/вирусы)
+  if(started&&scene>=1){
     const bw=260,bh=340,bx=boy.x-bw/2,by=boy.y-50;
-    X.globalAlpha=.15;
-    X.fillStyle='#fff';
+    X.globalAlpha=.12;X.fillStyle='#fff';
     X.beginPath();X.roundRect(bx,by,bw,bh,30);X.fill();
     X.globalAlpha=1;
-    X.strokeStyle='rgba(255,255,255,0.3)';X.lineWidth=2;
+    X.strokeStyle='rgba(255,255,255,0.25)';X.lineWidth=2;
     X.beginPath();X.roundRect(bx,by,bw,bh,30);X.stroke();
 
-    // Клетки
+    X.save();
+    X.beginPath();X.roundRect(bx,by,bw,bh,30);X.clip();
     for(const c of cells)drawCell(c);
-    // Вирусы
     for(const v of viruses)if(v.hp>0)drawVirus(v);
-    // Лейкоциты
     for(const w of leukos)drawLeuko(w);
-  }
-  X.restore();
-
-  // Снаружи частицы
-  if(scene===0){
-    for(const v of viruses){
-      if(v.y<boy.y-80||v.y>boy.y+100)drawVirus(v);
-    }
+    X.restore();
   }
 
   // Частицы
@@ -332,7 +305,6 @@ function draw(){
   }
   X.globalAlpha=1;
 
-  // Текст
   for(const f of floats){
     const a=f.life/f.max;X.globalAlpha=a;
     X.font=`bold ${f.size}px Arial Black,Arial`;X.textAlign='center';
@@ -341,15 +313,57 @@ function draw(){
   }
   X.globalAlpha=1;
 
-  X.restore();
-  X.save();
+  const vig=X.createRadialGradient(W/2,H*.45,H*.25,W/2,H*.45,H*.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.5)');
+  X.fillStyle=vig;X.fillRect(0,0,W,H);
+
+  X.restore();X.save();
 
   if(flash>0){X.globalAlpha=Math.min(.5,flash/35);X.fillStyle=flashCol;X.fillRect(0,0,W,H);X.globalAlpha=1;}
 
-  drawUI();
-  drawPulseMonitor();
+  if(!started)drawStartScreen();
+  else{drawUI();drawPulseMonitor();}
 
   X.restore();
+}
+
+function drawStartScreen(){
+  X.fillStyle='rgba(0,0,0,0.55)';X.fillRect(0,0,W,H);
+
+  const bounce=Math.sin(time*.06)*12;
+
+  // Иконка
+  X.save();X.translate(W/2,H*.28+bounce);
+  X.font='120px Arial';X.textAlign='center';X.fillText('🤒',0,0);
+  X.restore();
+
+  X.font='bold 88px Arial Black,Arial';X.textAlign='center';
+  X.lineWidth=16;X.strokeStyle='#1a237e';
+  X.strokeText('ЧТО ПРОИСХОДИТ',W/2,H*.4);
+  const g1=X.createLinearGradient(0,H*.36,0,H*.44);
+  g1.addColorStop(0,'#90caf9');g1.addColorStop(1,'#42a5f5');
+  X.fillStyle=g1;X.fillText('ЧТО ПРОИСХОДИТ',W/2,H*.4);
+
+  X.lineWidth=18;X.strokeStyle='#b71c1c';
+  X.strokeText('ПРИ ПРОСТУДЕ?',W/2,H*.48);
+  const g2=X.createLinearGradient(0,H*.44,0,H*.52);
+  g2.addColorStop(0,'#ff8a80');g2.addColorStop(1,'#ff1744');
+  X.fillStyle=g2;X.fillText('ПРИ ПРОСТУДЕ?',W/2,H*.48);
+
+  // Кнопка
+  const pulse=1+Math.sin(time*.1)*.07;
+  X.save();X.translate(W/2,H*.65);X.scale(pulse,pulse);
+  X.fillStyle='#43a047';
+  X.beginPath();X.roundRect(-260,-60,520,120,60);X.fill();
+  X.strokeStyle='#fff';X.lineWidth=6;
+  X.beginPath();X.roundRect(-260,-60,520,120,60);X.stroke();
+  X.font='bold 56px Arial Black,Arial';
+  X.fillStyle='#fff';
+  X.fillText('▶ НАЖМИ И ЗВУК',0,20);
+  X.restore();
+
+  X.font='36px Arial';X.fillStyle='rgba(255,255,255,0.7)';
+  X.fillText('🎵 Включи звук для эффекта',W/2,H*.75);
 }
 
 function drawCloud(x,y,s){
@@ -362,45 +376,34 @@ function drawCloud(x,y,s){
 }
 
 function drawRoom(){
-  // Стена
-  X.fillStyle='rgba(255,240,220,0.4)';
-  X.fillRect(0,0,W,H*.7);
-  // Пол
-  X.fillStyle='rgba(180,140,100,0.5)';
-  X.fillRect(0,H*.7,W,H*.3);
-  // Плинтус
-  X.fillStyle='rgba(150,110,70,0.6)';
-  X.fillRect(0,H*.7-8,W,12);
+  X.fillStyle='rgba(255,245,235,0.5)';X.fillRect(0,0,W,H*.7);
+  X.fillStyle='rgba(210,170,130,0.5)';X.fillRect(0,H*.7,W,H*.3);
+  X.fillStyle='rgba(180,140,100,0.6)';X.fillRect(0,H*.7-8,W,12);
 
   // Окно
-  const wx=W*.75,wy=H*.15,ww=180,wh=220;
-  X.fillStyle='rgba(135,206,235,0.6)';
+  const wx=W*.75,wy=H*.12,ww=180,wh=220;
+  X.fillStyle='rgba(135,206,250,0.7)';
   X.beginPath();X.roundRect(wx,wy,ww,wh,10);X.fill();
-  X.strokeStyle='rgba(100,80,60,0.7)';X.lineWidth=6;
+  X.strokeStyle='rgba(140,100,70,0.8)';X.lineWidth=6;
   X.beginPath();X.roundRect(wx,wy,ww,wh,10);X.stroke();
-  X.beginPath();X.moveTo(wx+ww/2,wy);X.lineTo(wx+ww/2,wy+wh);X.stroke();
+  X.lineWidth=4;X.beginPath();X.moveTo(wx+ww/2,wy);X.lineTo(wx+ww/2,wy+wh);X.stroke();
   X.beginPath();X.moveTo(wx,wy+wh/2);X.lineTo(wx+ww,wy+wh/2);X.stroke();
-  // Солнце в окне
-  X.fillStyle='rgba(255,235,59,0.8)';
-  X.beginPath();X.arc(wx+45,wy+50,25,0,6.28);X.fill();
+  X.fillStyle='rgba(255,235,59,0.9)';
+  X.beginPath();X.arc(wx+45,wy+55,28,0,6.28);X.fill();
 
-  // Постель (слева)
-  X.fillStyle='rgba(180,100,80,0.5)';
-  X.beginPath();X.roundRect(40,H*.62,280,40,10);X.fill();
-  X.fillStyle='rgba(255,255,255,0.6)';
-  X.beginPath();X.roundRect(50,H*.58,80,50,8);X.fill();
+  // Кровать
+  X.fillStyle='rgba(200,120,100,0.5)';
+  X.beginPath();X.roundRect(30,H*.63,300,50,12);X.fill();
+  X.fillStyle='rgba(255,255,255,0.7)';
+  X.beginPath();X.roundRect(45,H*.58,90,55,10);X.fill();
 
-  // Тумбочка
-  X.fillStyle='rgba(160,110,70,0.6)';
-  X.fillRect(W*.08,H*.68,120,100);
-
-  // Термометр на тумбочке
-  X.fillStyle='#fff';
-  X.beginPath();X.roundRect(W*.08+40,H*.65,12,50,6);X.fill();
+  // Тумбочка + термометр
+  X.fillStyle='rgba(180,130,90,0.6)';X.fillRect(W*.06,H*.68,130,110);
+  X.fillStyle='#fff';X.beginPath();X.roundRect(W*.06+50,H*.64,14,55,7);X.fill();
   X.fillStyle='#ff1744';
-  const tempLevel=boy.fever;
-  X.fillRect(W*.08+43,H*.68+30*(1-tempLevel),6,30*tempLevel);
-  X.beginPath();X.arc(W*.08+46,H*.65+52,10,0,6.28);X.fill();
+  const tl=boy.fever;
+  X.fillRect(W*.06+53,H*.67+33*(1-tl),8,33*tl);
+  X.beginPath();X.arc(W*.06+57,H*.64+56,11,0,6.28);X.fill();
 }
 
 function drawBoy(){
@@ -413,249 +416,239 @@ function drawBoy(){
   X.translate(bx+shiver,by);
 
   // Тень
-  X.fillStyle='rgba(0,0,0,0.15)';
-  X.beginPath();X.ellipse(0,240,100,20,0,0,6.28);X.fill();
+  X.fillStyle='rgba(0,0,0,0.12)';
+  X.beginPath();X.ellipse(0,245,110,22,0,0,6.28);X.fill();
 
-  // === НОГИ ===
-  X.fillStyle='#1565c0';
-  X.beginPath();X.roundRect(-50,140,40,80,10);X.fill();
-  X.beginPath();X.roundRect(10,140,40,80,10);X.fill();
-
+  // Ноги
+  X.fillStyle='#1e88e5';
+  X.beginPath();X.roundRect(-52,145,42,85,12);X.fill();
+  X.beginPath();X.roundRect(10,145,42,85,12);X.fill();
   // Носки
   X.fillStyle='#ff7043';
-  X.beginPath();X.roundRect(-50,200,40,25,8);X.fill();
-  X.beginPath();X.roundRect(10,200,40,25,8);X.fill();
-
-  // Тапочки
+  X.beginPath();X.roundRect(-52,205,42,28,8);X.fill();
+  X.beginPath();X.roundRect(10,205,42,28,8);X.fill();
+  // Тапочки-утята
   X.fillStyle='#ffca28';
-  X.beginPath();X.roundRect(-55,215,50,20,8);X.fill();
-  X.beginPath();X.roundRect(5,215,50,20,8);X.fill();
+  X.beginPath();X.roundRect(-58,220,54,22,10);X.fill();
+  X.beginPath();X.roundRect(4,220,54,22,10);X.fill();
+  // Глазки на тапочках
+  X.fillStyle='#fff';
+  X.beginPath();X.arc(-42,227,5,0,6.28);X.arc(-30,227,5,0,6.28);
+  X.arc(24,227,5,0,6.28);X.arc(36,227,5,0,6.28);X.fill();
+  X.fillStyle='#333';
+  X.beginPath();X.arc(-41,227,2.5,0,6.28);X.arc(-29,227,2.5,0,6.28);
+  X.arc(25,227,2.5,0,6.28);X.arc(37,227,2.5,0,6.28);X.fill();
 
-  // === ТЕЛО (пижама) ===
-  const bodyGrad=X.createLinearGradient(0,-20,0,150);
-  bodyGrad.addColorStop(0,'#42a5f5');bodyGrad.addColorStop(1,'#1e88e5');
-  X.fillStyle=bodyGrad;
-  X.beginPath();X.roundRect(-65,-20+breathe*.3,130,170,20);X.fill();
-
-  // Полоски пижамы
-  X.fillStyle='rgba(255,255,255,0.25)';
-  for(let i=0;i<6;i++){
-    X.beginPath();X.roundRect(-65,-10+i*28+breathe*.3,130,12,4);X.fill();
-  }
-
-  // Карман
+  // Тело (пижама тёплая)
+  const bg2=X.createLinearGradient(0,-25,0,155);
+  bg2.addColorStop(0,'#42a5f5');bg2.addColorStop(1,'#1e88e5');
+  X.fillStyle=bg2;
+  X.beginPath();X.roundRect(-70,-25+breathe*.3,140,180,25);X.fill();
+  // Полоски
+  X.fillStyle='rgba(255,255,255,0.2)';
+  for(let i=0;i<6;i++){X.beginPath();X.roundRect(-70,-10+i*30+breathe*.3,140,13,5);X.fill();}
+  // Карман с зверушкой
   X.strokeStyle='rgba(255,255,255,0.5)';X.lineWidth=3;
-  X.beginPath();X.roundRect(-30,80,60,40,8);X.stroke();
+  X.beginPath();X.roundRect(-32,85,64,45,10);X.stroke();
+  X.fillStyle='rgba(255,255,255,0.3)';
+  X.beginPath();X.arc(-15,105,8,0,6.28);X.arc(5,105,8,0,6.28);X.fill();
+  X.beginPath();X.arc(-5,112,6,0,6.28);X.fill();
 
-  // === РУКИ ===
+  // Руки
   const armWave=boy.happy?Math.sin(time*.2)*30:0;
   const armShiver=boy.shiverT>0?Math.sin(time*.6)*8:0;
 
-  // Левая рука
+  // Левая
+  X.save();X.translate(-70,-5);X.rotate(-.15+armShiver*.01);
   X.fillStyle='#42a5f5';
-  X.save();X.translate(-65,0);X.rotate(-.2+armShiver*.01);
-  X.beginPath();X.roundRect(-35,0,35,100,15);X.fill();
-  // Кисть
+  X.beginPath();X.roundRect(-38,0,38,110,16);X.fill();
   X.fillStyle='#ffcc80';
-  X.beginPath();X.arc(-18,105,16,0,6.28);X.fill();
+  X.beginPath();X.arc(-19,115,18,0,6.28);X.fill();
   X.restore();
 
-  // Правая рука (махает)
-  X.save();X.translate(65,0);X.rotate(.2+armWave*.01+armShiver*.01);
+  // Правая
+  X.save();X.translate(70,-5);X.rotate(.15+armWave*.01+armShiver*.01);
   X.fillStyle='#42a5f5';
-  X.beginPath();X.roundRect(0,0,35,100,15);X.fill();
+  X.beginPath();X.roundRect(0,0,38,110,16);X.fill();
   X.fillStyle='#ffcc80';
-  X.beginPath();X.arc(18,105,16,0,6.28);X.fill();
+  X.beginPath();X.arc(19,115,18,0,6.28);X.fill();
   X.restore();
 
-  // === ШЕЯ ===
-  X.fillStyle='#ffcc80';
-  X.fillRect(-15,-40+breathe,30,30);
+  // Шея
+  X.fillStyle='#ffcc80';X.fillRect(-16,-45+breathe,32,35);
 
-  // === ГОЛОВА ===
+  // ГОЛОВА
   X.save();
-  X.translate(sneezeLean*.5,-95+breathe);
+  X.translate(sneezeLean*.5,-105+breathe);
 
-  // Шапка (ночной чепчик)
-  const capGrad=X.createLinearGradient(0,-75,0,-10);
-  capGrad.addColorStop(0,'#ef5350');capGrad.addColorStop(1,'#e53935');
-  X.fillStyle=capGrad;
-  X.beginPath();
-  X.ellipse(0,-35,75,65,0,Math.PI,0);
-  X.fill();
-  // Полоски шапки
-  X.fillStyle='rgba(255,255,255,0.4)';
-  X.beginPath();X.ellipse(0,-50,75,12,0,Math.PI,0);X.fill();
-  X.beginPath();X.ellipse(0,-35,70,10,0,Math.PI,0);X.fill();
+  // Ночная шапка
+  const capG=X.createLinearGradient(0,-80,0,-10);
+  capG.addColorStop(0,'#ef5350');capG.addColorStop(1,'#e53935');
+  X.fillStyle=capG;
+  X.beginPath();X.ellipse(0,-38,78,70,0,Math.PI,0);X.fill();
+  X.fillStyle='rgba(255,255,255,0.45)';
+  X.beginPath();X.ellipse(0,-55,78,13,0,Math.PI,0);X.fill();
+  X.beginPath();X.ellipse(0,-38,73,11,0,Math.PI,0);X.fill();
   // Помпон
   X.fillStyle='#fff';
-  X.beginPath();X.arc(0,-95,18,0,6.28);X.fill();
-  X.fillStyle='rgba(0,0,0,0.1)';
-  X.beginPath();X.arc(-5,-100,8,0,6.28);X.fill();
+  X.beginPath();X.arc(0,-102,20,0,6.28);X.fill();
+  X.fillStyle='rgba(0,0,0,0.08)';
+  X.beginPath();X.arc(-6,-108,9,0,6.28);X.fill();
 
   // Лицо
-  const skinGrad=X.createRadialGradient(-15,-20,10,0,0,70);
-  skinGrad.addColorStop(0,'#ffe0b2');skinGrad.addColorStop(.7,'#ffcc80');skinGrad.addColorStop(1,'#ffb74d');
-  X.fillStyle=skinGrad;
-  X.beginPath();X.ellipse(0,0,70,65,0,0,6.28);X.fill();
+  const skinG=X.createRadialGradient(-15,-20,10,0,0,75);
+  skinG.addColorStop(0,'#ffe0b2');skinG.addColorStop(.7,'#ffcc80');skinG.addColorStop(1,'#ffb74d');
+  X.fillStyle=skinG;
+  X.beginPath();X.ellipse(0,0,74,70,0,0,6.28);X.fill();
 
   // Уши
   X.fillStyle='#ffcc80';
-  X.beginPath();X.arc(-70,5,15,0,6.28);X.fill();
-  X.beginPath();X.arc(70,5,15,0,6.28);X.fill();
+  X.beginPath();X.arc(-74,8,16,0,6.28);X.fill();
+  X.beginPath();X.arc(74,8,16,0,6.28);X.fill();
+  X.fillStyle='rgba(255,150,130,0.3)';
+  X.beginPath();X.arc(-74,8,8,0,6.28);X.arc(74,8,8,0,6.28);X.fill();
 
-  // Чёлка из-под шапки
+  // Чёлка
   X.fillStyle='#5d4037';
   X.beginPath();
-  X.moveTo(-60,-30);X.quadraticCurveTo(-40,-45,-20,-35);
-  X.quadraticCurveTo(-10,-30,0,-38);
-  X.quadraticCurveTo(15,-45,35,-32);
-  X.quadraticCurveTo(50,-25,65,-35);
-  X.quadraticCurveTo(55,-20,40,-25);
-  X.quadraticCurveTo(20,-18,0,-28);
-  X.quadraticCurveTo(-25,-18,-45,-25);
-  X.quadraticCurveTo(-55,-20,-60,-30);
+  X.moveTo(-62,-32);X.quadraticCurveTo(-42,-48,-22,-37);
+  X.quadraticCurveTo(-12,-32,0,-40);
+  X.quadraticCurveTo(15,-48,37,-34);
+  X.quadraticCurveTo(52,-27,67,-37);
+  X.quadraticCurveTo(57,-22,42,-27);
+  X.quadraticCurveTo(22,-20,0,-30);
+  X.quadraticCurveTo(-27,-20,-47,-27);
+  X.quadraticCurveTo(-57,-22,-62,-32);
   X.fill();
 
-  // === ГЛАЗА ===
+  // ГЛАЗА
   const blinking=boy.blink>0;
   const eyeY=-5;
 
   if(blinking){
-    X.strokeStyle='#3e2723';X.lineWidth=4;X.lineCap='round';
-    X.beginPath();X.moveTo(-35,eyeY);X.lineTo(-15,eyeY);X.stroke();
-    X.beginPath();X.moveTo(15,eyeY);X.lineTo(35,eyeY);X.stroke();
+    X.strokeStyle='#3e2723';X.lineWidth=5;X.lineCap='round';
+    X.beginPath();X.moveTo(-38,eyeY);X.quadraticCurveTo(-26,eyeY+5,-14,eyeY);X.stroke();
+    X.beginPath();X.moveTo(14,eyeY);X.quadraticCurveTo(26,eyeY+5,38,eyeY);X.stroke();
   }else{
-    // Белки
     X.fillStyle='#fff';
-    X.beginPath();X.ellipse(-25,eyeY,22,24,0,0,6.28);X.fill();
-    X.beginPath();X.ellipse(25,eyeY,22,24,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(-26,eyeY,24,26,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(26,eyeY,24,26,0,0,6.28);X.fill();
+
+    const lookX=boy.sneezeT>0?-4:boy.happy?0:Math.sin(time*.03)*2;
+    const lookY=boy.sneezeT>0?6:boy.happy?-4:0;
 
     // Радужка
-    const lookX=boy.sneezeT>0?-3:boy.happy?0:Math.sin(time*.03)*2;
-    const lookY=boy.sneezeT>0?5:boy.happy?-3:0;
-    X.fillStyle='#5d4037';
-    X.beginPath();X.arc(-25+lookX,eyeY+lookY,12,0,6.28);X.fill();
-    X.beginPath();X.arc(25+lookX,eyeY+lookY,12,0,6.28);X.fill();
-    // Зрачки
+    const eyeCol=boy.happy?'#1565c0':'#4e342e';
+    X.fillStyle=boy.happy?'#64b5f6':'#6d4c41';
+    X.beginPath();X.arc(-26+lookX,eyeY+lookY,14,0,6.28);X.fill();
+    X.beginPath();X.arc(26+lookX,eyeY+lookY,14,0,6.28);X.fill();
+    X.fillStyle=eyeCol;
+    X.beginPath();X.arc(-26+lookX,eyeY+lookY,9,0,6.28);X.fill();
+    X.beginPath();X.arc(26+lookX,eyeY+lookY,9,0,6.28);X.fill();
     X.fillStyle='#1a1a1a';
-    X.beginPath();X.arc(-25+lookX,eyeY+lookY,7,0,6.28);X.fill();
-    X.beginPath();X.arc(25+lookX,eyeY+lookY,7,0,6.28);X.fill();
+    X.beginPath();X.arc(-26+lookX,eyeY+lookY,5,0,6.28);X.fill();
+    X.beginPath();X.arc(26+lookX,eyeY+lookY,5,0,6.28);X.fill();
     // Блики
     X.fillStyle='#fff';
-    X.beginPath();X.arc(-21+lookX,eyeY-4+lookY,4,0,6.28);X.fill();
-    X.beginPath();X.arc(29+lookX,eyeY-4+lookY,4,0,6.28);X.fill();
-    X.beginPath();X.arc(-28+lookX,eyeY+3+lookY,2,0,6.28);X.fill();
-    X.beginPath();X.arc(22+lookX,eyeY+3+lookY,2,0,6.28);X.fill();
-
-    // Если температура — красноватые глазки
-    if(boy.fever>.5){
-      X.strokeStyle='rgba(255,80,80,0.4)';X.lineWidth=2;
-      X.beginPath();X.ellipse(-25,eyeY,22,24,0,0,6.28);X.stroke();
-      X.beginPath();X.ellipse(25,eyeY,22,24,0,0,6.28);X.stroke();
-    }
+    X.beginPath();X.arc(-21+lookX,eyeY-5+lookY,5,0,6.28);X.fill();
+    X.beginPath();X.arc(31+lookX,eyeY-5+lookY,5,0,6.28);X.fill();
+    X.beginPath();X.arc(-30+lookX,eyeY+3+lookY,2.5,0,6.28);X.fill();
+    X.beginPath();X.arc(22+lookX,eyeY+3+lookY,2.5,0,6.28);X.fill();
   }
 
   // Брови
   X.strokeStyle='#5d4037';X.lineWidth=5;X.lineCap='round';
   if(boy.fever>.4||boy.sneezeT>0){
-    // Хмурые / болезненные
-    X.beginPath();X.moveTo(-40,-35);X.quadraticCurveTo(-25,-42,-10,-35);X.stroke();
-    X.beginPath();X.moveTo(10,-35);X.quadraticCurveTo(25,-42,40,-35);X.stroke();
+    X.beginPath();X.moveTo(-42,-38);X.quadraticCurveTo(-26,-46,-10,-38);X.stroke();
+    X.beginPath();X.moveTo(10,-38);X.quadraticCurveTo(26,-46,42,-38);X.stroke();
   }else{
-    X.beginPath();X.moveTo(-40,-32);X.quadraticCurveTo(-25,-40,-10,-33);X.stroke();
-    X.beginPath();X.moveTo(10,-33);X.quadraticCurveTo(25,-40,40,-32);X.stroke();
+    X.beginPath();X.moveTo(-42,-35);X.quadraticCurveTo(-26,-43,-10,-36);X.stroke();
+    X.beginPath();X.moveTo(10,-36);X.quadraticCurveTo(26,-43,42,-35);X.stroke();
   }
 
-  // === НОС ===
-  // Простуженный — красный нос
+  // Нос
   const noseRed=boy.noseRed;
-  const noseGrad=X.createRadialGradient(0,25,2,0,25,20);
+  const noseG=X.createRadialGradient(0,26,2,0,26,22);
   if(noseRed>.3){
-    noseGrad.addColorStop(0,`rgba(255,${100-noseRed*50},100,0.9)`);
-    noseGrad.addColorStop(1,`rgba(255,150,140,0.4)`);
+    noseG.addColorStop(0,`rgba(255,${120-noseRed*40},110,0.9)`);
+    noseG.addColorStop(1,`rgba(255,170,160,0.4)`);
   }else{
-    noseGrad.addColorStop(0,'rgba(255,200,170,0.8)');
-    noseGrad.addColorStop(1,'rgba(255,200,170,0.3)');
+    noseG.addColorStop(0,'rgba(255,210,180,0.8)');
+    noseG.addColorStop(1,'rgba(255,210,180,0.3)');
   }
-  X.fillStyle=noseGrad;
-  X.beginPath();X.ellipse(0,22,18,15,0,0,6.28);X.fill();
-  // Ноздри
-  X.fillStyle='rgba(0,0,0,0.2)';
-  X.beginPath();X.ellipse(-6,28,4,3,0,0,6.28);X.fill();
-  X.beginPath();X.ellipse(6,28,4,3,0,0,6.28);X.fill();
+  X.fillStyle=noseG;
+  X.beginPath();X.ellipse(0,24,20,17,0,0,6.28);X.fill();
+  X.fillStyle='rgba(0,0,0,0.15)';
+  X.beginPath();X.ellipse(-7,31,4,3,0,0,6.28);X.fill();
+  X.beginPath();X.ellipse(7,31,4,3,0,0,6.28);X.fill();
 
-  // Сопли (капельки)
-  if(noseRed>.5&&scene>=1&&scene<=4){
+  // Сопли
+  if(noseRed>.5&&started&&scene>=1&&scene<=4){
     const drip=Math.sin(time*.08);
     if(drip>.3){
-      X.fillStyle='rgba(180,230,255,0.85)';
-      X.beginPath();X.ellipse(-8,38+drip*5,5,8,0,0,6.28);X.fill();
-      X.fillStyle='rgba(255,255,255,0.6)';
-      X.beginPath();X.ellipse(-9,35+drip*5,2,3,0,0,6.28);X.fill();
+      X.fillStyle='rgba(190,235,255,0.9)';
+      X.beginPath();X.ellipse(-9,42+drip*5,5,9,0,0,6.28);X.fill();
+      X.fillStyle='rgba(255,255,255,0.7)';
+      X.beginPath();X.ellipse(-10,39+drip*5,2,3,0,0,6.28);X.fill();
     }
     if(drip<-.3){
-      X.fillStyle='rgba(180,230,255,0.85)';
-      X.beginPath();X.ellipse(8,38-drip*5,5,8,0,0,6.28);X.fill();
-      X.fillStyle='rgba(255,255,255,0.6)';
-      X.beginPath();X.ellipse(7,35-drip*5,2,3,0,0,6.28);X.fill();
+      X.fillStyle='rgba(190,235,255,0.9)';
+      X.beginPath();X.ellipse(9,42-drip*5,5,9,0,0,6.28);X.fill();
+      X.fillStyle='rgba(255,255,255,0.7)';
+      X.beginPath();X.ellipse(8,39-drip*5,2,3,0,0,6.28);X.fill();
     }
   }
 
-  // === РОТ ===
+  // Рот
   if(boy.sneezeT>20){
-    // Чихает — широко открытый
     X.fillStyle='#c62828';
-    X.beginPath();X.ellipse(0,52,25,28,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(0,56,26,30,0,0,6.28);X.fill();
     X.fillStyle='#e57373';
-    X.beginPath();X.ellipse(0,58,15,18,0,0,6.28);X.fill();
-    // Зубы
+    X.beginPath();X.ellipse(0,62,16,20,0,0,6.28);X.fill();
     X.fillStyle='#fff';
-    X.beginPath();X.roundRect(-15,32,30,10,4);X.fill();
-    X.beginPath();X.roundRect(-15,68,30,8,4);X.fill();
+    X.beginPath();X.roundRect(-16,34,32,11,5);X.fill();
+    X.beginPath();X.roundRect(-16,74,32,9,5);X.fill();
   }else if(boy.sneezeT>0){
-    // После чиха — приоткрыт
     X.fillStyle='#c62828';
-    X.beginPath();X.ellipse(0,50,15,18,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(0,54,16,20,0,0,6.28);X.fill();
     X.fillStyle='#e57373';
-    X.beginPath();X.ellipse(0,55,8,10,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(0,59,9,11,0,0,6.28);X.fill();
   }else if(boy.happy){
-    // Улыбка
-    X.strokeStyle='#3e2723';X.lineWidth=5;X.lineCap='round';
-    X.beginPath();X.arc(0,40,28,.2,Math.PI-.2);X.stroke();
+    X.fillStyle='#c62828';
+    X.beginPath();X.arc(0,44,30,.1,Math.PI-.1);X.fill();
+    X.fillStyle='#e57373';
+    X.beginPath();X.ellipse(0,56,12,8,0,0,6.28);X.fill();
     X.fillStyle='#fff';
-    X.beginPath();X.arc(0,40,24,.3,Math.PI-.3);X.fill();
-    // Ямочки
-    X.fillStyle='rgba(0,0,0,0.08)';
-    X.beginPath();X.arc(-38,45,6,0,6.28);X.arc(38,45,6,0,6.28);X.fill();
+    X.beginPath();X.arc(0,44,26,.15,Math.PI-.15);X.fill();
+    // Румянец + ямочки
+    X.fillStyle='rgba(255,150,130,0.5)';
+    X.beginPath();X.ellipse(-50,35,16,11,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(50,35,16,11,0,0,6.28);X.fill();
+    X.fillStyle='rgba(0,0,0,0.06)';
+    X.beginPath();X.arc(-55,42,5,0,6.28);X.arc(55,42,5,0,6.28);X.fill();
   }else if(boy.fever>.4){
-    // Нездоровая ухмылка / дрожь
     X.strokeStyle='#3e2723';X.lineWidth=4;X.lineCap='round';
-    X.beginPath();
-    X.moveTo(-18,48);
-    if(boy.shiverT>0)X.quadraticCurveTo(0,44+Math.sin(time*.8)*3,18,48);
-    else X.quadraticCurveTo(0,56,18,48);
+    X.beginPath();X.moveTo(-16,52);
+    if(boy.shiverT>0)X.quadraticCurveTo(0,48+Math.sin(time*.8)*3,16,52);
+    else X.quadraticCurveTo(0,60,16,52);
     X.stroke();
   }else{
-    // Нейтральный
     X.strokeStyle='#3e2723';X.lineWidth=4;X.lineCap='round';
-    X.beginPath();X.arc(0,42,18,.3,Math.PI-.3);X.stroke();
+    X.beginPath();X.arc(0,46,20,.3,Math.PI-.3);X.stroke();
   }
 
-  // === ТЕМПЕРАТУРА (жар) ===
+  // Жар
   if(boy.fever>.3){
-    // Щёчки красные
-    X.fillStyle=`rgba(255,100,100,${boy.fever*.4})`;
-    X.beginPath();X.ellipse(-45,30,15,10,0,0,6.28);X.fill();
-    X.beginPath();X.ellipse(45,30,15,10,0,0,6.28);X.fill();
-    // Испарение (жар)
+    X.fillStyle=`rgba(255,120,120,${boy.fever*.45})`;
+    X.beginPath();X.ellipse(-50,32,17,11,0,0,6.28);X.fill();
+    X.beginPath();X.ellipse(50,32,17,11,0,0,6.28);X.fill();
     if(boy.fever>.5){
-      X.globalAlpha=.2*boy.fever;
+      X.globalAlpha=.15*boy.fever;
       X.fillStyle='#ff6b6b';
       for(let i=0;i<3;i++){
-        const sx=(i-1)*30+Math.sin(time*.1+i)*10;
-        const sy=-60-Math.sin(time*.08+i*2)*20;
-        X.beginPath();X.ellipse(sx,sy,15,25,0,0,6.28);X.fill();
+        const sx=(i-1)*32+Math.sin(time*.1+i)*10;
+        const sy=-65-Math.sin(time*.08+i*2)*20;
+        X.beginPath();X.ellipse(sx,sy,16,28,0,0,6.28);X.fill();
       }
       X.globalAlpha=1;
     }
@@ -663,44 +656,31 @@ function drawBoy(){
 
   X.restore(); // голова
 
-  // === ТЕРМОМЕТР ВО РТУ ===
-  if(scene>=2&&scene<=4){
-    X.save();
-    X.translate(35,55+breathe);
-    X.rotate(.4);
-    // Палочка
-    X.fillStyle='#fff';
-    X.beginPath();X.roundRect(-5,-8,80,16,8);X.fill();
-    // Наконечник
-    X.fillStyle='#ff1744';
-    X.beginPath();X.arc(75,0,12,0,6.28);X.fill();
-    // Деления
+  // Термометр
+  if(started&&scene>=2&&scene<=4){
+    X.save();X.translate(40,58+breathe);X.rotate(.4);
+    X.fillStyle='#fff';X.beginPath();X.roundRect(-5,-9,90,18,9);X.fill();
+    X.fillStyle='#ff1744';X.beginPath();X.arc(85,0,14,0,6.28);X.fill();
     X.strokeStyle='#90a4ae';X.lineWidth=2;
-    for(let i=0;i<5;i++){X.beginPath();X.moveTo(5+i*12,-8);X.lineTo(5+i*12,-2);X.stroke();}
-    // Уровень
-    const temp=boy.fever;
-    X.fillStyle='#ff1744';
-    X.fillRect(5,0,70*temp,8);
+    for(let i=0;i<5;i++){X.beginPath();X.moveTo(5+i*13,-9);X.lineTo(5+i*13,-2);X.stroke();}
+    X.fillStyle='#ff1744';X.fillRect(5,0,80*boy.fever,9);
     X.restore();
   }
 
-  // Плед (если сильно болеет)
-  if(boy.fever>.5&&scene<=4){
-    X.fillStyle='rgba(200,80,80,0.6)';
+  // Плед
+  if(started&&boy.fever>.5&&scene<=4){
+    X.fillStyle='rgba(220,90,90,0.55)';
     X.beginPath();
-    X.moveTo(-80,100);
-    X.quadraticCurveTo(-100,200,-70,250);
-    X.lineTo(70,250);
-    X.quadraticCurveTo(100,200,80,100);
-    X.quadraticCurveTo(0,130,-80,100);
-    X.fill();
-    X.fillStyle='rgba(255,255,255,0.2)';
-    for(let i=0;i<4;i++){
-      X.beginPath();X.roundRect(-70+i*40,140,30,60,10);X.fill();
-    }
+    X.moveTo(-85,105);X.quadraticCurveTo(-105,210,-75,255);
+    X.lineTo(75,255);X.quadraticCurveTo(105,210,85,105);
+    X.quadraticCurveTo(0,135,-85,105);X.fill();
+    X.fillStyle='rgba(255,255,255,0.18)';
+    for(let i=0;i<4;i++){X.beginPath();X.roundRect(-75+i*42,145,32,65,10);X.fill();}
+    X.fillStyle='rgba(255,255,255,0.25)';
+    X.beginPath();X.roundRect(-85,105,170,15,8);X.fill();
   }
 
-  X.restore(); // boy
+  X.restore();
 }
 
 function drawCell(c){
@@ -753,14 +733,18 @@ function drawVirus(v){
   bg.addColorStop(.7,fl?'#fff':`hsl(${hue},80%,45%)`);
   bg.addColorStop(1,fl?'#fff':`hsl(${hue},75%,30%)`);
   X.fillStyle=bg;X.beginPath();X.arc(0,0,r,0,6.28);X.fill();
-  // Злые глазки
+  // Мультяшные злые глазки
   X.fillStyle='#fff';
-  X.beginPath();X.arc(-r*.3,-r*.15,r*.18,0,6.28);X.arc(r*.3,-r*.15,r*.18,0,6.28);X.fill();
+  X.beginPath();X.arc(-r*.3,-r*.15,r*.2,0,6.28);X.arc(r*.3,-r*.15,r*.2,0,6.28);X.fill();
   X.fillStyle='#1a1a1a';
-  X.beginPath();X.arc(-r*.3,-r*.15,r*.09,0,6.28);X.arc(r*.3,-r*.15,r*.09,0,6.28);X.fill();
-  // Злобная ухмылка
-  X.strokeStyle='#1a1a1a';X.lineWidth=2;
+  X.beginPath();X.arc(-r*.3,-r*.15,r*.1,0,6.28);X.arc(r*.3,-r*.15,r*.1,0,6.28);X.fill();
+  X.strokeStyle='#1a1a1a';X.lineWidth=2;X.lineCap='round';
   X.beginPath();X.arc(0,r*.2,r*.3,.3,Math.PI-.3);X.stroke();
+  // Злые брови
+  X.lineWidth=2.5;
+  X.beginPath();X.moveTo(-r*.45,-r*.35);X.lineTo(-r*.15,-r*.28);X.stroke();
+  X.beginPath();X.moveTo(r*.45,-r*.35);X.lineTo(r*.15,-r*.28);X.stroke();
+
   if(hp<2){X.rotate(-angle);X.fillStyle='rgba(0,0,0,.5)';X.fillRect(-r,-r-15,r*2,5);
     X.fillStyle=hp>1?'#ff9100':'#ff1744';X.fillRect(-r,-r-15,r*2*(hp/2),5);}
   X.restore();
@@ -773,22 +757,43 @@ function drawLeuko(w){
   X.globalAlpha=1;
   X.save();X.translate(x,y);
   const gl=X.createRadialGradient(0,0,r*.3,0,0,r*2.5);
-  gl.addColorStop(0,'rgba(0,229,255,.45)');gl.addColorStop(1,'rgba(0,229,255,0)');
+  gl.addColorStop(0,'rgba(0,229,255,.4)');gl.addColorStop(1,'rgba(0,229,255,0)');
   X.fillStyle=gl;X.beginPath();X.arc(0,0,r*2.5,0,6.28);X.fill();
   const g=X.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r);
-  g.addColorStop(0,'#e0f7fa');g.addColorStop(.5,'#80deea');g.addColorStop(1,'#00acc1');
+  g.addColorStop(0,'#e0f7fa');g.addColorStop(.5,'#b2ebf2');g.addColorStop(1,'#4dd0e1');
   X.fillStyle=g;X.beginPath();
-  for(let i=0;i<=32;i++){const a=(i/32)*6.28,ww=1+Math.sin(a*4+angle*3)*.14+Math.sin(a*7-angle*2)*.07;
+  for(let i=0;i<=32;i++){const a=(i/32)*6.28,ww=1+Math.sin(a*4+angle*3)*.12+Math.sin(a*7-angle*2)*.06;
     X.lineTo(Math.cos(a)*r*ww,Math.sin(a)*r*ww);}
-  X.fill();X.strokeStyle='rgba(255,255,255,.55)';X.lineWidth=2;X.stroke();
-  // Глаза-воин
+  X.fill();X.strokeStyle='rgba(255,255,255,.6)';X.lineWidth=2;X.stroke();
+
+  // Дружелюбные глазки-воин
   X.fillStyle='#fff';
-  X.beginPath();X.arc(-r*.3,0,r*.18,0,6.28);X.arc(r*.3,0,r*.18,0,6.28);X.fill();
-  X.fillStyle='#1565c0';
-  X.beginPath();X.arc(-r*.3,0,r*.09,0,6.28);X.arc(r*.3,0,r*.09,0,6.28);X.fill();
-  // Шлем (повязка)
-  X.fillStyle='rgba(0,150,200,0.6)';
-  X.beginPath();X.roundRect(-r,-r*.6,r*2,r*.3,5);X.fill();
+  X.beginPath();X.arc(-r*.3,-r*.1,r*.2,0,6.28);X.arc(r*.3,-r*.1,r*.2,0,6.28);X.fill();
+  X.fillStyle='#00838f';
+  X.beginPath();X.arc(-r*.3,-r*.1,r*.1,0,6.28);X.arc(r*.3,-r*.1,r*.1,0,6.28);X.fill();
+  X.fillStyle='#fff';
+  X.beginPath();X.arc(-r*.3-r*.03,-r*.1-r*.04,r*.04,0,6.28);X.arc(r*.3-r*.03,-r*.1-r*.04,r*.04,0,6.28);X.fill();
+
+  // Улыбка-храбрец
+  X.strokeStyle='#00838f';X.lineWidth=2;X.lineCap='round';
+  X.beginPath();X.arc(0,r*.15,r*.25,.3,Math.PI-.3);X.stroke();
+
+  // Повязка-боевая
+  X.fillStyle='rgba(0,150,200,0.5)';
+  X.beginPath();X.roundRect(-r,-r*.55,r*2,r*.28,4);X.fill();
+  // Звезда
+  X.fillStyle='#ffd600';
+  X.beginPath();
+  for(let i=0;i<5;i++){
+    const a=-Math.PI/2+i*Math.PI*2/5;
+    const a2=a+Math.PI/5;
+    const r1=r*.12,r2=r*.05;
+    if(i===0)X.moveTo(Math.cos(a)*r1,-r*.4+Math.sin(a)*r1);
+    else X.lineTo(Math.cos(a)*r1,-r*.4+Math.sin(a)*r1);
+    X.lineTo(Math.cos(a2)*r2,-r*.4+Math.sin(a2)*r2);
+  }
+  X.fill();
+
   X.restore();
 }
 
@@ -824,7 +829,6 @@ function drawUI(){
     if(scene===1){X.strokeText(`🦠 Заражено: ${cellInfected}`,55,100);X.fillStyle='#ff9100';X.fillText(`🦠 Заражено: ${cellInfected}`,55,100);}
     if(scene===2){X.strokeText(`🦠 Вирусов: ${viruses.length}`,55,100);X.fillStyle='#ff9100';X.fillText(`🦠 Вирусов: ${viruses.length}`,55,100);}
     if(scene===3||scene===4){X.strokeText(`💀 Уничтожено: ${killCount}`,55,100);X.fillStyle='#00e5ff';X.fillText(`💀 Уничтожено: ${killCount}`,55,100);}
-    // Температура
     const temp=(36.5+boy.fever*3).toFixed(1);
     X.textAlign='right';X.strokeText(`🌡️ ${temp}°C`,W-55,100);
     X.fillStyle=boy.fever>.5?'#ff1744':'#ff9100';X.fillText(`🌡️ ${temp}°C`,W-55,100);
@@ -836,15 +840,6 @@ function drawUI(){
     X.strokeText('🎉 КОЛЯ ЗДОРОВ!',0,0);
     X.fillStyle='#66bb6a';X.fillText('🎉 КОЛЯ ЗДОРОВ!',0,0);
     X.restore();
-  }
-
-  if(time<250&&scene===0){
-    X.globalAlpha=Math.min(1,time/30)*Math.min(1,(250-time)/40);
-    X.font='bold 42px Arial';X.textAlign='center';
-    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,.8)';
-    X.strokeText('🤒 ЧТО ПРОИСХОДИТ ПРИ ПРОСТУДЕ',W/2,150);
-    X.fillStyle='#ffd600';X.fillText('🤒 ЧТО ПРОИСХОДИТ ПРИ ПРОСТУДЕ',W/2,150);
-    X.globalAlpha=1;
   }
 }
 
@@ -860,32 +855,30 @@ function getPulse(t){
   return v;
 }
 function drawPulseMonitor(){
-  const monH=140,monY=H-monH-40,monX=40,monW=W-80;
+  const monH=130,monY=H-monH-35,monX=40,monW=W-80;
   const pv=getPulse(time);
+  const hot=boy.fever>.5;
 
   X.fillStyle='rgba(0,0,0,0.6)';
-  X.beginPath();X.roundRect(monX-10,monY-40,monW+20,monH+75,16);X.fill();
-  X.strokeStyle=`rgba(${boy.fever>.5?'255,82,82':'0,229,255'},0.4)`;X.lineWidth=2;
-  X.beginPath();X.roundRect(monX-10,monY-40,monW+20,monH+75,16);X.stroke();
+  X.beginPath();X.roundRect(monX-10,monY-40,monW+20,monH+72,16);X.fill();
+  X.strokeStyle=hot?'rgba(255,82,82,0.4)':'rgba(0,229,255,0.4)';X.lineWidth=2;
+  X.beginPath();X.roundRect(monX-10,monY-40,monW+20,monH+72,16);X.stroke();
 
   X.font='bold 26px Arial';X.textAlign='left';
-  X.fillStyle=boy.fever>.5?'rgba(255,82,82,0.9)':'rgba(0,229,255,0.9)';
-  X.fillText('❤️ ПУЛЬС КОЛИ',monX,monY-14);
-
-  X.textAlign='right';X.font='bold 34px Arial Black';
-  X.fillStyle=boy.fever>.5?'#ff5252':'#00e676';
+  X.fillStyle=hot?'rgba(255,82,82,0.9)':'rgba(0,229,255,0.9)';
+  X.fillText('❤️ ПУЛЬС',monX,monY-14);
+  X.textAlign='right';X.font='bold 32px Arial Black';
+  X.fillStyle=hot?'#ff5252':'#00e676';
   X.fillText(`${Math.round(72+boy.fever*60)} BPM`,monX+monW,monY-12);
 
-  // Сетка
   X.strokeStyle='rgba(255,255,255,0.06)';X.lineWidth=1;
   for(let x=monX;x<monX+monW;x+=30){X.beginPath();X.moveTo(x,monY);X.lineTo(x,monY+monH);X.stroke();}
   for(let y=monY;y<monY+monH;y+=25){X.beginPath();X.moveTo(monX,y);X.lineTo(monX+monW,y);X.stroke();}
 
-  // ECG
   ecgData.push(pv);
   if(ecgData.length>monW)ecgData.shift();
 
-  const col=boy.fever>.5?'#ff5252':'#00e676';
+  const col=hot?'#ff5252':'#00e676';
   X.strokeStyle=col;X.lineWidth=3;X.lineJoin='round';X.shadowColor=col;X.shadowBlur=8;
   X.beginPath();
   for(let i=0;i<ecgData.length;i++){
@@ -903,15 +896,23 @@ function drawPulseMonitor(){
   }
 }
 
+// === INPUT ===
+C.addEventListener('pointerdown',e=>{
+  e.preventDefault();
+  if(!started){
+    started=true;
+    initAudio();
+    if(AC&&AC.state==='suspended')AC.resume();
+    resetScene(0);
+    return;
+  }
+  if(scene>=SCENES.length-1&&sceneT>100){resetScene(0);}
+});
+document.addEventListener('click',()=>{if(!started){started=true;initAudio();resetScene(0);}});
+
 // === LOOP ===
 function loop(){update();draw();requestAnimationFrame(loop);}
-resetScene(0);
 loop();
-
-C.addEventListener('pointerdown',()=>{initAudio();if(scene>=SCENES.length-1&&sceneT>100)resetScene(0);},{once:true});
-document.addEventListener('click',()=>initAudio(),{once:true});
-document.addEventListener('touchstart',()=>initAudio(),{once:true});
-setTimeout(()=>initAudio(),100);
 </script>
 </body>
 </html>

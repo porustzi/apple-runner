@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>🦠 Что происходит при заражении</title>
+<title>🦠 Заражение в теле человека</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{width:100%;height:100%;overflow:hidden;background:#000}
@@ -17,368 +17,344 @@ canvas{display:block;max-width:100vw;max-height:100vh;aspect-ratio:9/16}
 const C=document.getElementById('c'),X=C.getContext('2d'),W=1080,H=1920;
 let time=0,shake=0,flash=0,flashCol='#fff';
 
-// === AUDIO ===
+// ===== AUDIO =====
 let AC=null,audioOn=false;
 function initAudio(){
-  if(audioOn)return; audioOn=true;
+  if(audioOn)return;audioOn=true;
   AC=new(window.AudioContext||window.webkitAudioContext)();
-  const BPM=140,BL=60/BPM;
-  let step=0,startT=AC.currentTime+0.1;
-
-  function kick(t){
-    const o=AC.createOscillator(),g=AC.createGain();
-    o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(40,t+0.12);
-    g.gain.setValueAtTime(1,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.15);
-    o.connect(g).connect(AC.destination);o.start(t);o.stop(t+0.16);
-  }
-  function hat(t,open){
-    const b=AC.createBuffer(1,AC.sampleRate*0.05,AC.sampleRate),d=b.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;
-    const s=AC.createBufferSource();s.buffer=b;
-    const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=8000;
-    const g=AC.createGain(),dur=open?0.15:0.04;
-    g.gain.setValueAtTime(open?0.2:0.3,t);g.gain.exponentialRampToValueAtTime(0.01,t+dur);
-    s.connect(f).connect(g).connect(AC.destination);s.start(t);s.stop(t+dur+0.01);
-  }
-  function snare(t){
-    const b=AC.createBuffer(1,AC.sampleRate*0.15,AC.sampleRate),d=b.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*0.03));
-    const s=AC.createBufferSource();s.buffer=b;
-    const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=2000;
-    const g=AC.createGain();g.gain.value=0.5;
-    s.connect(f).connect(g).connect(AC.destination);s.start(t);
-    const o=AC.createOscillator(),og=AC.createGain();
-    o.type='triangle';o.frequency.value=180;og.gain.setValueAtTime(0.35,t);og.gain.exponentialRampToValueAtTime(0.01,t+0.1);
-    o.connect(og).connect(AC.destination);o.start(t);o.stop(t+0.11);
-  }
-  function bass(t,f,dur){
-    const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();
-    lp.type='lowpass';lp.frequency.setValueAtTime(600,t);lp.frequency.exponentialRampToValueAtTime(150,t+dur);
-    o.type='sawtooth';o.frequency.value=f;
-    g.gain.setValueAtTime(0.45,t);g.gain.exponentialRampToValueAtTime(0.01,t+dur);
-    o.connect(lp).connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);
-  }
-  function lead(t,f,dur){
-    const o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain();
-    o.type='sawtooth';o.frequency.value=f;o2.type='sawtooth';o2.frequency.value=f*1.005;
-    g.gain.setValueAtTime(0.1,t);g.gain.exponentialRampToValueAtTime(0.01,t+dur);
-    o.connect(g);o2.connect(g);g.connect(AC.destination);
-    o.start(t);o.stop(t+dur);o2.start(t);o2.stop(t+dur);
-  }
-  function riser(t,dur){
-    const o=AC.createOscillator(),g=AC.createGain();
-    o.type='sawtooth';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(4000,t+dur);
-    g.gain.setValueAtTime(0.06,t);g.gain.linearRampToValueAtTime(0.18,t+dur);
-    o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+0.05);
-  }
-  function impact(t){
-    const b=AC.createBuffer(1,AC.sampleRate*0.5,AC.sampleRate),d=b.getChannelData(0);
-    for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*0.08));
-    const s=AC.createBufferSource();s.buffer=b;
-    const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=1200;
-    const g=AC.createGain();g.gain.value=0.7;
-    s.connect(f).connect(g).connect(AC.destination);s.start(t);
-    const o=AC.createOscillator(),og=AC.createGain();
-    o.type='sine';o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(28,t+0.4);
-    og.gain.setValueAtTime(0.9,t);og.gain.exponentialRampToValueAtTime(0.01,t+0.5);
-    o.connect(og).connect(AC.destination);o.start(t);o.stop(t+0.55);
-  }
-
-  const kP=[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0];
-  const sP=[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1];
-  const hP=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1];
-  const oP=[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1];
+  const BPM=140,BL=60/BPM;let step=0,startT=AC.currentTime+0.1;
+  function kick(t){const o=AC.createOscillator(),g=AC.createGain();o.type='sine';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(40,t+0.12);g.gain.setValueAtTime(1,t);g.gain.exponentialRampToValueAtTime(0.01,t+0.15);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+0.16);}
+  function hat(t,op){const b=AC.createBuffer(1,AC.sampleRate*.05,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=Math.random()*2-1;const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=8000;const g=AC.createGain(),dur=op?.15:.04;g.gain.setValueAtTime(op?.18:.28,t);g.gain.exponentialRampToValueAtTime(.01,t+dur);s.connect(f).connect(g).connect(AC.destination);s.start(t);s.stop(t+dur+.01);}
+  function snare(t){const b=AC.createBuffer(1,AC.sampleRate*.15,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*.03));const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='bandpass';f.frequency.value=2000;const g=AC.createGain();g.gain.value=.5;s.connect(f).connect(g).connect(AC.destination);s.start(t);const o=AC.createOscillator(),og=AC.createGain();o.type='triangle';o.frequency.value=180;og.gain.setValueAtTime(.35,t);og.gain.exponentialRampToValueAtTime(.01,t+.1);o.connect(og).connect(AC.destination);o.start(t);o.stop(t+.11);}
+  function bass(t,f,dur){const o=AC.createOscillator(),g=AC.createGain(),lp=AC.createBiquadFilter();lp.type='lowpass';lp.frequency.setValueAtTime(600,t);lp.frequency.exponentialRampToValueAtTime(150,t+dur);o.type='sawtooth';o.frequency.value=f;g.gain.setValueAtTime(.45,t);g.gain.exponentialRampToValueAtTime(.01,t+dur);o.connect(lp).connect(g).connect(AC.destination);o.start(t);o.stop(t+dur);}
+  function lead(t,f,dur){const o=AC.createOscillator(),o2=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';o.frequency.value=f;o2.type='sawtooth';o2.frequency.value=f*1.005;g.gain.setValueAtTime(.1,t);g.gain.exponentialRampToValueAtTime(.01,t+dur);o.connect(g);o2.connect(g);g.connect(AC.destination);o.start(t);o.stop(t+dur);o2.start(t);o2.stop(t+dur);}
+  function riser(t,dur){const o=AC.createOscillator(),g=AC.createGain();o.type='sawtooth';o.frequency.setValueAtTime(150,t);o.frequency.exponentialRampToValueAtTime(4000,t+dur);g.gain.setValueAtTime(.06,t);g.gain.linearRampToValueAtTime(.18,t+dur);o.connect(g).connect(AC.destination);o.start(t);o.stop(t+dur+.05);}
+  function impact(t){const b=AC.createBuffer(1,AC.sampleRate*.5,AC.sampleRate),d=b.getChannelData(0);for(let i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.exp(-i/(AC.sampleRate*.08));const s=AC.createBufferSource();s.buffer=b;const f=AC.createBiquadFilter();f.type='lowpass';f.frequency.value=1200;const g=AC.createGain();g.gain.value=.7;s.connect(f).connect(g).connect(AC.destination);s.start(t);const o=AC.createOscillator(),og=AC.createGain();o.type='sine';o.frequency.setValueAtTime(70,t);o.frequency.exponentialRampToValueAtTime(28,t+.4);og.gain.setValueAtTime(.9,t);og.gain.exponentialRampToValueAtTime(.01,t+.5);o.connect(og).connect(AC.destination);o.start(t);o.stop(t+.55);}
+  const kP=[1,0,0,0,1,0,0,0,1,0,0,0,1,0,0,0],sP=[0,0,0,0,1,0,0,0,0,0,0,0,1,0,0,1],hP=[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],oP=[0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,1];
   const bF=[55,43.65,65.41,49];
-  const lN=[
-    [440,0,0,0,523,0,0,0,659,0,523,0,440,0,0,0],
-    [349,0,0,0,440,0,0,0,523,0,440,0,349,0,0,0],
-    [523,0,0,0,659,0,0,0,784,0,659,0,523,0,0,0],
-    [392,0,0,0,494,0,0,0,587,0,494,0,392,0,440,0]
-  ];
-
-  function sched(){
-    if(!AC)return;
-    const now=AC.currentTime;
-    while(step*BL/4<now+0.1-startT){
-      const t=startT+step*BL/4,s=step%16,bar=Math.floor(step/16)%4;
-      if(kP[s])kick(t); if(sP[s])snare(t); if(hP[s])hat(t,oP[s]===1);
-      if(s%4===0)bass(t,bF[bar],BL*0.9);
-      const n=lN[bar][s]; if(n)lead(t,n,BL*0.45);
-      if(bar===3&&s===8)riser(t,BL*2);
-      if(step%64===0&&step>0)impact(t);
-      step++;
-    }
-  }
+  const lN=[[440,0,0,0,523,0,0,0,659,0,523,0,440,0,0,0],[349,0,0,0,440,0,0,0,523,0,440,0,349,0,0,0],[523,0,0,0,659,0,0,0,784,0,659,0,523,0,0,0],[392,0,0,0,494,0,0,0,587,0,494,0,392,0,440,0]];
+  function sched(){if(!AC)return;const now=AC.currentTime;while(step*BL/4<now+.1-startT){const t=startT+step*BL/4,s=step%16,bar=Math.floor(step/16)%4;if(kP[s])kick(t);if(sP[s])snare(t);if(hP[s])hat(t,oP[s]===1);if(s%4===0)bass(t,bF[bar],BL*.9);const n=lN[bar][s];if(n)lead(t,n,BL*.45);if(bar===3&&s===8)riser(t,BL*2);if(step%64===0&&step>0)impact(t);step++;}}
   setInterval(sched,50);
 }
 
-// === SCENARIO ===
+// ===== SCENARIOS =====
 const SCENES=[
-  {id:0, dur:280, title:'ЗАРОЖДЕНИЕ', sub:'Одна частица вируса\nпроникает в организм...', color:'#ff1744'},
-  {id:1, dur:320, title:'ЗАРАЖЕНИЕ', sub:'Вирус атакует здоровые клетки\nи превращает их в фабрики копий', color:'#ff1744'},
-  {id:2, dur:320, title:'РАЗМНОЖЕНИЕ', sub:'Каждые 20 минут вирус\nделится на 2 новых...', color:'#ff9100'},
-  {id:3, dur:300, title:'ИММУНИТЕТ АКТИВИРОВАН', sub:'Белые кровяные клетки\nобнаружили угрозу!', color:'#00e5ff'},
-  {id:4, dur:380, title:'БИТВА', sub:'Лейкоциты уничтожают вирусы\nодин за другим', color:'#00e5ff'},
-  {id:5, dur:320, title:'ПОБЕДА', sub:'Организм справился!\nИммунитет стал сильнее', color:'#00e676'},
+  {dur:260,title:'ВДОХ',sub:'Вирус попадает\nв дыхательные пути',col:'#4fc3f7'},
+  {dur:340,title:'ПРОНИКНОВЕНИЕ',sub:'Он проникает в клетки\nи захватывает контроль',col:'#ff1744'},
+  {dur:320,title:'РАЗМНОЖЕНИЕ',sub:'Каждые 20 минут\nвирус делится надвое',col:'#ff9100'},
+  {dur:300,title:'ИММУНИТЕТ',sub:'Организм обнаружил\nугрозу и атакует',col:'#00e5ff'},
+  {dur:380,title:'БИТВА',sub:'Лейкоциты уничтожают\nвирусы один за другим',col:'#00e5ff'},
+  {dur:340,title:'ПОБЕДА!',sub:'Организм победил!\nИммунитет стал крепче',col:'#00e676'},
+];
+let scene=0,sceneT=0,killCount=0,cellInfected=0;
+
+// ===== BODY SILHOUETTE =====
+// Ключевые точки тела (нормализованы 0..1 от центра)
+const BODY_PTS=[
+  // Голова (круг)
+  ...Array.from({length:24},(_,i)=>{const a=(i/24)*Math.PI*2;return{x:Math.cos(a)*0.045,y:-0.42+Math.sin(a)*0.055};}),
+  // Шея
+  {x:-0.02,y:-0.37},{x:0.02,y:-0.37},
+  // Плечи
+  {x:-0.09,y:-0.33},{x:0.09,y:-0.33},
+  // Левая рука
+  {x:-0.12,y:-0.3},{x:-0.14,y:-0.15},{x:-0.15,y:-0.02},{x:-0.14,y:0.08},
+  {x:-0.16,y:0.1},{x:-0.17,y:0.08},{x:-0.16,y:-0.02},{x:-0.17,y:-0.15},{x:-0.15,y:-0.3},
+  // Правая рука
+  {x:0.15,y:-0.3},{x:0.17,y:-0.15},{x:0.16,y:-0.02},{x:0.17,y:0.08},
+  {x:0.19,y:0.1},{x:0.2,y:0.08},{x:0.19,y:-0.02},{x:0.18,y:-0.15},{x:0.16,y:-0.3},
+  // Торс
+  {x:0.09,y:-0.33},{x:0.1,y:-0.2},{x:0.09,y:-0.05},{x:0.08,y:0.08},
+  // Бёдра
+  {x:0.07,y:0.15},
+  // Ноги
+  {x:0.07,y:0.25},{x:0.06,y:0.38},{x:0.055,y:0.48},{x:0.06,y:0.52},
+  {x:0.08,y:0.53},{x:0.08,y:0.52},{x:0.075,y:0.48},{x:0.07,y:0.38},{x:0.07,y:0.25},
+  // Межножье
+  {x:0,y:0.18},
+  // Левая нога
+  {x:-0.07,y:0.25},{x:-0.06,y:0.38},{x:-0.055,y:0.48},{x:-0.06,y:0.52},
+  {x:-0.08,y:0.53},{x:-0.08,y:0.52},{x:-0.075,y:0.48},{x:-0.07,y:0.38},{x:-0.07,y:0.25},
+  {x:-0.07,y:0.15},{x:-0.08,y:0.08},{x:-0.09,y:-0.05},{x:-0.1,y:-0.2},{x:-0.09,y:-0.33},
 ];
 
-let scene=0,sceneT=0;
-let parts=[],floats=[],viruses=[],cells=[],leukos=[];
-let killCount=0,cellCount=0;
-
-function resetScene(s){
-  scene=s;sceneT=0;
-  shake=15;flash=30;flashCol=SCENES[s].color;
-  parts.length=0;floats.length=0;
-
-  if(s===0){viruses.length=0;cells.length=0;leukos.length=0;
-    for(let i=0;i<15;i++)spawnCell();
-  }
-  if(s===1){viruses.length=0;
-    for(let i=0;i<5;i++)spawnVirus(-100-Math.random()*300,300+Math.random()*800);
-  }
-  if(s===2){if(viruses.length<8)for(let i=0;i<8-viruses.length;i++)spawnVirus(Math.random()*W,Math.random()*H);}
-  if(s===3){leukos.length=0;for(let i=0;i<6;i++)setTimeout(()=>spawnLeuko(),i*150);}
-  if(s===4){killCount=0;if(viruses.length<10)for(let i=0;i<10;i++)spawnVirus(Math.random()*W,Math.random()*H);}
-  if(s===5){viruses.length=0;
-    for(let i=0;i<80;i++)parts.push({x:Math.random()*W,y:-Math.random()*400,vx:(Math.random()-.5)*4,vy:2+Math.random()*5,life:150,max:150,r:5+Math.random()*10,color:`hsl(${Math.random()*360},90%,60%)`});
-  }
+function bodyToScreen(p){
+  return{x:W/2+p.x*W*1.1,y:H*0.48+p.y*H*0.92};
 }
 
-function spawnVirus(x,y){
-  viruses.push({x:x??-50,y:y??Math.random()*H,vx:1+Math.random()*3,vy:(Math.random()-.5)*2,
-    r:28+Math.random()*15,angle:Math.random()*6.28,spin:(Math.random()-.5)*.12,
-    hp:2,hue:320+Math.random()*40,wobble:Math.random()*6.28,spikes:10});
+// Органы (нормализованные)
+const ORGANS={
+  heart:{x:0.015,y:-0.16,r:0.032,label:'❤️'},
+  lungs:{lx:-0.05,ly:-0.18,rx:0.05,ry:-0.18,r:0.045},
+  stomach:{x:0.01,y:-0.05,r:0.035},
+  brain:{x:0,y:-0.42,r:0.04},
+};
+
+// ===== ENTITIES =====
+let viruses=[],cells=[],leukos=[],parts=[],floats=[],bloodDrops=[];
+
+function bodyPos(ox,oy,spread){
+  return{x:W/2+(ox+(Math.random()-.5)*spread)*W*1.1,y:H*0.48+(oy+(Math.random()-.5)*spread)*H*0.92};
 }
-function spawnCell(){
-  cells.push({x:100+Math.random()*(W-200),y:300+Math.random()*(H-600),
-    r:35+Math.random()*20,hue:195+Math.random()*30,hp:5,infected:false,inf:0,
-    pulse:Math.random()*6.28,dying:0,nuc:{ox:(Math.random()-.5)*8,oy:(Math.random()-.5)*8}});
+function spawnVirusInBody(){
+  const zones=[
+    {x:0.01,y:-0.35,r:0.08},   // горло
+    {x:0.01,y:-0.18,r:0.08},   // грудь
+    {x:0.01,y:-0.05,r:0.07},   // живот
+    {x:0.01,y:0.1,r:0.06},     // таз
+  ];
+  const z=zones[Math.floor(Math.random()*zones.length)];
+  const p=bodyPos(z.x,z.y,z.r);
+  viruses.push({x:p.x,y:p.y,vx:(Math.random()-.5)*2,vy:(Math.random()-.5)*2,
+    r:20+Math.random()*12,angle:Math.random()*6.28,spin:(Math.random()-.5)*.1,
+    hp:2,hue:320+Math.random()*40,wobble:Math.random()*6.28,spikes:9});
+}
+function spawnCellInBody(){
+  const zones=[
+    {x:-0.04,y:-0.18,r:0.04},{x:0.04,y:-0.18,r:0.04},
+    {x:0.01,y:-0.16,r:0.03},{x:0.01,y:-0.05,r:0.04},
+    {x:-0.03,y:-0.1,r:0.03},{x:0.04,y:-0.1,r:0.03},
+    {x:0.01,y:0.08,r:0.03},{x:-0.04,y:0.05,r:0.03},
+    {x:0.01,y:-0.35,r:0.03},{x:0.01,y:-0.4,r:0.025},
+    {x:-0.06,y:-0.15,r:0.03},{x:0.06,y:-0.15,r:0.03},
+  ];
+  const z=zones[Math.floor(Math.random()*zones.length)];
+  const p=bodyPos(z.x,z.y,z.r);
+  cells.push({x:p.x,y:p.y,r:18+Math.random()*12,hue:195+Math.random()*30,
+    hp:5,infected:false,inf:0,pulse:Math.random()*6.28,dying:0,
+    nuc:{ox:(Math.random()-.5)*5,oy:(Math.random()-.5)*5}});
 }
 function spawnLeuko(){
-  leukos.push({x:W/2+(Math.random()-.5)*300,y:H+50,vx:0,vy:-5-Math.random()*3,
-    r:28+Math.random()*12,hp:8,target:null,cd:0,angle:Math.random()*6.28,trail:[]});
+  const p=bodyPos((Math.random()-.5)*.15,-0.3+Math.random()*.6,.05);
+  leukos.push({x:p.x,y:H+40,vx:0,vy:-4-Math.random()*3,r:16+Math.random()*8,
+    hp:8,target:null,cd:0,angle:Math.random()*6.28,trail:[],homeX:p.x,homeY:p.y});
 }
 function addP(x,y,n,col,sp,life){
   for(let i=0;i<n;i++){const a=Math.random()*6.28,s=Math.random()*sp;
-    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:life||30,max:life||30,r:3+Math.random()*8,color:col||`hsl(${Math.random()*60+10},90%,60%)`});
-  }
+    parts.push({x,y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:life||30,max:life||30,r:2+Math.random()*7,color:col||`hsl(${Math.random()*60+10},90%,60%)`});}
 }
 function addT(x,y,t,col,size){floats.push({x,y,text:t,color:col||'#fff',size:size||48,life:70,max:70});}
 
+// ===== PULSE =====
+let pulseBPM=72,pulseVal=0;
+function getPulse(t){
+  const beat=(t/60)*pulseBPM;
+  const frac=beat-Math.floor(beat);
+  // Двойной удар сердца (lub-dub)
+  let v=0;
+  if(frac<0.08)v=Math.sin(frac/0.08*Math.PI);
+  else if(frac>0.15&&frac<0.25)v=Math.sin((frac-0.15)/0.1*Math.PI)*0.6;
+  return v;
+}
+
+function resetScene(s){
+  scene=s;sceneT=0;
+  shake=12;flash=25;flashCol=SCENES[s].col;
+  parts.length=0;floats.length=0;
+
+  if(s===0){viruses.length=0;cells.length=0;leukos.length=0;cellInfected=0;
+    for(let i=0;i<16;i++)spawnCellInBody();
+    // Вирус летит снаружи
+    viruses.push({x:W/2-200,y:H*0.05,vx:2,vy:3,r:30,angle:0,spin:.03,hp:99,hue:330,wobble:0,spikes:10,external:true});
+    pulseBPM=72;
+  }
+  if(s===1){pulseBPM=85;cellInfected=0;
+    // Вирус внутри горла
+    const p=bodyPos(0.01,-0.35,.02);
+    viruses=[{x:p.x,y:p.y,vx:0,vy:1.5,r:28,angle:0,spin:.04,hp:99,hue:330,wobble:0,spikes:10}];
+    if(!cells.length)for(let i=0;i<16;i++)spawnCellInBody();
+  }
+  if(s===2){pulseBPM=100;
+    if(viruses.length<5)for(let i=0;i<5-viruses.length;i++)spawnVirusInBody();
+  }
+  if(s===3){pulseBPM=110;leukos.length=0;
+    for(let i=0;i<6;i++)setTimeout(()=>spawnLeuko(),i*150);
+  }
+  if(s===4){pulseBPM=130;killCount=0;
+    if(leukos.length<6)for(let i=0;i<6-leukos.length;i++)spawnLeuko();
+    if(viruses.length<8)for(let i=0;i<8-viruses.length;i++)spawnVirusInBody();
+  }
+  if(s===5){pulseBPM=80;
+    for(let i=0;i<60;i++)parts.push({x:Math.random()*W,y:-Math.random()*300,
+      vx:(Math.random()-.5)*3,vy:2+Math.random()*4,life:150,max:150,
+      r:4+Math.random()*8,color:`hsl(${100+Math.random()*80},90%,60%)`});
+  }
+}
+
 function update(){
   time++;sceneT++;
-  if(shake>0)shake*=0.92;
-  if(flash>0)flash-=2.5;
+  if(shake>0)shake*=.92;if(flash>0)flash-=2.5;
 
-  // particles
-  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=0.08;p.vx*=0.99;p.life--;if(p.life<=0)parts.splice(i,1);}
+  pulseVal=getPulse(time);
+
+  for(let i=parts.length-1;i>=0;i--){const p=parts[i];p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.vx*=.99;p.life--;if(p.life<=0)parts.splice(i,1);}
   for(let i=floats.length-1;i>=0;i--){const f=floats[i];f.y-=2.5;f.life--;if(f.life<=0)floats.splice(i,1);}
 
   const sc=SCENES[scene];
   if(sceneT>=sc.dur&&scene<SCENES.length-1){resetScene(scene+1);return;}
 
-  // Scene logic
+  // === SCENE LOGIC ===
   if(scene===0){
-    // Virus slowly drifts in from top
-    if(viruses.length===0){
-      viruses.push({x:W/2,y:-80,vx:0,vy:2.5,r:45,angle:0,spin:0.02,hp:99,wobble:0,spikes:12,hue:330});
+    const v=viruses[0];
+    if(v){
+      v.x+=v.vx;v.y+=v.vy;v.wobble+=.08;v.angle+=v.spin;
+      // Летит к носу/рту
+      const target=bodyPos(0.01,-0.4,.01);
+      const dx=target.x-v.x,dy=target.y-v.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>5){v.x+=dx/d*4;v.y+=dy/d*4;}
+      else{addP(v.x,v.y,20,'#ff1744',8,40);shake=20;flash=25;flashCol='#ff1744';
+        addT(W/2,H*0.35,'ПРОНИК!','#ff1744',80);viruses.length=0;}
     }
-    viruses[0].y+=2;
-    viruses[0].wobble+=0.08;
-    viruses[0].angle+=viruses[0].spin;
-    if(viruses[0].y>H*0.45&&viruses[0].y<H*0.45+5){
-      // При столкновении с клеткой
-      addP(viruses[0].x,viruses[0].y,20,'#ff1744',10,40);
-      shake=20;flash=25;flashCol='#ff1744';
-      addT(W/2,H*0.4,'ЗАРАЖЕНО!','#ff1744',80);
-      viruses[0].infected=true;
-    }
-    if(viruses[0].y>H*0.45){
-      viruses[0].vy=0;viruses[0].y=H*0.45;
-    }
-    // Клетки пульсируют
-    for(const c of cells){c.pulse+=0.04;}
+    for(const c of cells)c.pulse+=.04;
   }
 
   if(scene===1){
-    // Вирусы движутся к клеткам
     for(const v of viruses){
-      v.wobble+=0.1;v.angle+=v.spin;
+      v.wobble+=.1;v.angle+=v.spin;
       let best=null,bd=1e9;
       for(const c of cells){if(c.dying>0)continue;const dx=c.x-v.x,dy=c.y-v.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=c;}}
       if(best){const dx=best.x-v.x,dy=best.y-v.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-        v.vx+=(dx/d)*0.35;v.vy+=(dy/d)*0.35;
-        if(d<best.r+v.r*0.6&&!best.infected){
-          best.infected=true;best.inf=1;
-          addP(v.x,v.y,8,`hsl(${v.hue},90%,60%)`,6,25);
-          shake=8;
-        }
-      }
-      v.vx*=0.96;v.vy*=0.96;v.x+=v.vx;v.y+=v.vy;
+        v.vx+=dx/d*.3;v.vy+=dy/d*.3;
+        if(d<best.r+v.r*.5&&!best.infected){best.infected=true;best.inf=1;cellInfected++;
+          addP(v.x,v.y,8,`hsl(${v.hue},90%,60%)`,5,25);shake=6;
+          addT(best.x,best.y-30,'Заражена!','#ff1744',35);}}
+      v.vx*=.96;v.vy*=.96;v.x+=v.vx;v.y+=v.vy;
     }
-    // Инфекция растёт
-    for(const c of cells){c.pulse+=0.05;
-      if(c.infected){c.inf+=0.4;c.hue+=(25-c.hue)*0.01;
-        if(c.inf>100&&!c.dying){c.dying=25;cellCount++;addP(c.x,c.y,15,`hsl(${c.hue},80%,60%)`,10,40);
-          addT(c.x,c.y-50,'💥','#ff1744',50);shake=12;}
-      }
-      if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}
-    }
-    // Новые вирусы приходят
-    if(sceneT%50===0&&viruses.filter(v=>!v.dead).length<10)spawnVirus(-60,200+Math.random()*800);
-    viruses=viruses.filter(v=>!v.dead);
+    for(const c of cells){c.pulse+=.05;
+      if(c.infected){c.inf+=.35;c.hue+=(30-c.hue)*.01;
+        if(c.inf>100&&!c.dying){c.dying=25;addP(c.x,c.y,12,`hsl(${c.hue},80%,60%)`,8,35);shake=10;}}
+      if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}}
+    if(sceneT%70===0&&viruses.length<8)spawnVirusInBody();
   }
 
   if(scene===2){
-    // Вирусы делятся
     for(const v of viruses){
-      v.wobble+=0.12;v.angle+=v.spin*1.5;
-      v.x+=Math.sin(v.wobble)*1.2+v.vx*0.5;
-      v.y+=Math.cos(v.wobble*0.8)*1+v.vy*0.5;
-      v.x=Math.max(40,Math.min(W-40,v.x));
-      v.y=Math.max(150,Math.min(H-150,v.y));
+      v.wobble+=.12;v.angle+=v.spin*1.5;
+      // Держатся в теле
+      const cx=W/2,cy=H*0.48;
+      const dx=cx-v.x,dy=cy-v.y,d=Math.sqrt(dx*dx+dy*dy);
+      if(d>W*0.35){v.x+=dx/d*2;v.y+=dy/d*2;}
+      v.x+=Math.sin(v.wobble)*1;v.y+=Math.cos(v.wobble*.8)*.8;
+      v.x+=v.vx*.4;v.y+=v.vy*.4;
     }
-    // Деление каждые ~40 кадров
-    if(sceneT%45===0&&viruses.length<25){
-      const parent=viruses[Math.floor(Math.random()*viruses.length)];
-      if(parent){
-        viruses.push({x:parent.x+30,y:parent.y,vx:2,vy:(Math.random()-.5)*3,
-          r:parent.r*0.85,angle:parent.angle,spin:parent.spin,hp:2,hue:parent.hue,
-          wobble:parent.wobble,spikes:parent.spikes});
-        addP(parent.x,parent.y,10,`hsl(${parent.hue},90%,60%)`,6,25);
-        addT(parent.x,parent.y-40,'+1','#ff9100',45);
-        shake=5;
-      }
-    }
-    // Клетки умирают
-    for(const c of cells){c.pulse+=0.05;
-      if(c.infected){c.inf+=0.5;
-        if(c.inf>80&&!c.dying){c.dying=20;addP(c.x,c.y,12,'#ff5252',8,35);}
-      }
-      if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}
-      else if(!c.infected&&Math.random()<0.002)spawnCell();
-    }
+    if(sceneT%50===0&&viruses.length<20){
+      const p=viruses[Math.floor(Math.random()*viruses.length)];
+      if(p){viruses.push({x:p.x+15,y:p.y,vx:1.5,vy:(Math.random()-.5)*2,
+        r:p.r*.85,angle:p.angle,spin:p.spin,hp:2,hue:p.hue,wobble:p.wobble,spikes:p.spikes});
+        addP(p.x,p.y,8,`hsl(${p.hue},90%,60%)`,5,25);
+        addT(p.x,p.y-25,'+1','#ff9100',35);shake=4;}}
+    for(const c of cells){c.pulse+=.05;
+      if(c.infected){c.inf+=.4;
+        if(c.inf>80&&!c.dying){c.dying=20;addP(c.x,c.y,10,'#ff5252',7,30);}}
+      if(c.dying>0){c.dying--;if(c.dying<=0){const i=cells.indexOf(c);if(i>=0)cells.splice(i,1);}}}
+    if(sceneT%60===0&&cells.length<10)spawnCellInBody();
   }
 
   if(scene===3){
-    // Лейкоциты влетают
     for(const w of leukos){
-      w.angle+=0.06;w.cd--;
-      if(w.y>H*0.5)w.y+=w.vy;else{w.x+=Math.sin(time*0.04+w.angle)*2;w.y+=Math.cos(time*0.03+w.angle)*1.5;}
-      w.trail.push({x:w.x,y:w.y,life:15});if(w.trail.length>15)w.trail.shift();
+      w.angle+=.06;w.cd--;
+      if(w.y>H*0.5)w.y+=w.vy;
+      else{w.x+=Math.sin(time*.04+w.angle)*2;w.y+=Math.cos(time*.03+w.angle)*1.5;}
+      w.trail.push({x:w.x,y:w.y,life:12});if(w.trail.length>12)w.trail.shift();
       for(const t of w.trail)t.life--;
-      // Ищут вирус
       let best=null,bd=1e9;
       for(const v of viruses){const dx=v.x-w.x,dy=v.y-w.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=v;}}
       if(best&&w.y<H*0.55){
         const dx=best.x-w.x,dy=best.y-w.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-        w.vx+=(dx/d)*0.5;w.vy+=(dy/d)*0.5;
-        if(d<w.r+best.r&&w.cd<=0){
-          best.hp--;w.cd=18;
-          addP(best.x,best.y,6,'#00e5ff',8,25);shake=4;
-          if(best.hp<=0){addP(best.x,best.y,18,`hsl(${best.hue},90%,60%)`,12,40);
-            addT(best.x,best.y,'💀','#00e5ff',50);killCount++;}
-        }
+        w.vx+=dx/d*.5;w.vy+=dy/d*.5;
+        if(d<w.r+best.r&&w.cd<=0){best.hp--;w.cd=18;addP(best.x,best.y,5,'#00e5ff',6,25);shake=3;
+          if(best.hp<=0){addP(best.x,best.y,15,`hsl(${best.hue},90%,60%)`,10,40);addT(best.x,best.y,'💀','#00e5ff',45);killCount++;}}
       }
-      w.vx*=0.92;w.vy*=0.92;w.x+=w.vx;w.y+=w.vy;
-      w.x=Math.max(50,Math.min(W-50,w.x));w.y=Math.max(200,Math.min(H-150,w.y));
+      w.vx*=.92;w.vy*=.92;w.x+=w.vx;w.y+=w.vy;
+      w.x=Math.max(80,Math.min(W-80,w.x));w.y=Math.max(200,Math.min(H-350,w.y));
     }
-    // Вирусы убегают
     for(const v of viruses){
-      v.wobble+=0.1;v.angle+=v.spin;
+      v.wobble+=.1;v.angle+=v.spin;
       let fx=0,fy=0;
-      for(const w of leukos){const dx=v.x-w.x,dy=v.y-w.y,d=Math.sqrt(dx*dx+dy*dy);if(d<180){fx+=(dx/d)*2;fy+=(dy/d)*2;}}
-      v.vx+=fx*0.3+Math.sin(v.wobble)*0.4;v.vy+=fy*0.3+Math.cos(v.wobble)*0.4;
-      v.vx*=0.94;v.vy*=0.94;v.x+=v.vx;v.y+=v.vy;
-      v.x=Math.max(30,Math.min(W-30,v.x));v.y=Math.max(150,Math.min(H-100,v.y));
+      for(const w of leukos){const dx=v.x-w.x,dy=v.y-w.y,d=Math.sqrt(dx*dx+dy*dy);if(d<150){fx+=dx/d*2;fy+=dy/d*2;}}
+      v.vx+=fx*.3+Math.sin(v.wobble)*.4;v.vy+=fy*.3+Math.cos(v.wobble)*.4;
+      v.vx*=.94;v.vy*=.94;v.x+=v.vx;v.y+=v.vy;
     }
     viruses=viruses.filter(v=>v.hp>0);
-    // Респавн вирусов для битвы
-    if(sceneT%60===0&&viruses.length<8)spawnVirus(Math.random()*W,-30);
-    if(sceneT>200&&viruses.length===0)for(let i=0;i<6;i++)spawnVirus(Math.random()*W,Math.random()*H);
-    for(const c of cells){c.pulse+=0.04;if(c.infected){c.inf=Math.max(0,c.inf-0.2);if(c.inf<=0)c.infected=false;}}
+    if(sceneT%70===0&&viruses.length<8)spawnVirusInBody();
+    if(sceneT>200&&viruses.length===0)for(let i=0;i<5;i++)spawnVirusInBody();
+    for(const c of cells){c.pulse+=.04;if(c.infected){c.inf=Math.max(0,c.inf-.2);if(c.inf<=0)c.infected=false;}}
   }
 
   if(scene===4){
-    // Полная битва
     for(const w of leukos){
-      w.angle+=0.08;w.cd--;
+      w.angle+=.08;w.cd--;
       let best=null,bd=1e9;
       for(const v of viruses){const dx=v.x-w.x,dy=v.y-w.y,d=dx*dx+dy*dy;if(d<bd){bd=d;best=v;}}
-      if(best){
-        const dx=best.x-w.x,dy=best.y-w.y,d=Math.sqrt(dx*dx+dy*dy)||1;
-        w.vx+=(dx/d)*0.6;w.vy+=(dy/d)*0.6;
-        if(d<w.r+best.r&&w.cd<=0){
-          best.hp--;w.cd=15;
-          addP(best.x,best.y,8,'#00e5ff',10,30);shake=5;
-          if(best.hp<=0){addP(best.x,best.y,25,`hsl(${best.hue},90%,60%)`,14,45);
-            addT(best.x,best.y,'+1','#00e5ff',55);killCount++;flash=8;flashCol='#00e5ff';}
-        }
-      }else{w.vx+=Math.sin(time*0.03+w.angle)*0.2;w.vy+=Math.cos(time*0.03+w.angle)*0.2;}
-      w.vx*=0.92;w.vy*=0.92;w.x+=w.vx;w.y+=w.vy;
-      w.x=Math.max(50,Math.min(W-50,w.x));w.y=Math.max(200,Math.min(H-150,w.y));
-      w.trail.push({x:w.x,y:w.y,life:15});if(w.trail.length>15)w.trail.shift();
+      if(best){const dx=best.x-w.x,dy=best.y-w.y,d=Math.sqrt(dx*dx+dy*dy)||1;
+        w.vx+=dx/d*.6;w.vy+=dy/d*.6;
+        if(d<w.r+best.r&&w.cd<=0){best.hp--;w.cd=15;addP(best.x,best.y,6,'#00e5ff',8,30);shake=4;
+          if(best.hp<=0){addP(best.x,best.y,20,`hsl(${best.hue},90%,60%)`,12,45);
+            addT(best.x,best.y,'+1','#00e5ff',50);killCount++;flash=6;flashCol='#00e5ff';}}}
+      else{w.vx+=Math.sin(time*.03+w.angle)*.2;w.vy+=Math.cos(time*.03+w.angle)*.2;
+        // Возвращаются к телу
+        const tx=w.homeX,ty=w.homeY,dx=tx-w.x,dy=ty-w.y,d=Math.sqrt(dx*dx+dy*dy);
+        if(d>60){w.vx+=dx/d*.3;w.vy+=dy/d*.3;}}
+      w.vx*=.92;w.vy*=.92;w.x+=w.vx;w.y+=w.vy;
+      w.x=Math.max(80,Math.min(W-80,w.x));w.y=Math.max(200,Math.min(H-350,w.y));
+      w.trail.push({x:w.x,y:w.y,life:12});if(w.trail.length>12)w.trail.shift();
       for(const t of w.trail)t.life--;
     }
     for(const v of viruses){
-      v.wobble+=0.12;v.angle+=v.spin*2;
+      v.wobble+=.12;v.angle+=v.spin*2;
       let fx=0,fy=0;
-      for(const w of leukos){const dx=v.x-w.x,dy=v.y-w.y,d=Math.sqrt(dx*dx+dy*dy);if(d<200){fx+=(dx/d)*2.5;fy+=(dy/d)*2.5;}}
-      v.vx+=fx*0.35+Math.sin(v.wobble)*0.5;v.vy+=fy*0.35+Math.cos(v.wobble)*0.5;
-      v.vx*=0.93;v.vy*=0.93;v.x+=v.vx;v.y+=v.vy;
-      v.x=Math.max(30,Math.min(W-30,v.x));v.y=Math.max(150,Math.min(H-100,v.y));
+      for(const w of leukos){const dx=v.x-w.x,dy=v.y-w.y,d=Math.sqrt(dx*dx+dy*dy);if(d<170){fx+=dx/d*2.5;fy+=dy/d*2.5;}}
+      v.vx+=fx*.35+Math.sin(v.wobble)*.5;v.vy+=fy*.35+Math.cos(v.wobble)*.5;
+      v.vx*=.93;v.vy*=.93;v.x+=v.vx;v.y+=v.vy;
+      v.x=Math.max(60,Math.min(W-60,v.x));v.y=Math.max(180,Math.min(H-350,v.y));
     }
     viruses=viruses.filter(v=>v.hp>0);
-    if(sceneT%50===0&&viruses.length<12)spawnVirus(Math.random()*W,-30);
-    if(sceneT>250&&viruses.length<3)for(let i=0;i<8;i++)spawnVirus(Math.random()*W,Math.random()*H*0.5);
-    // Клетки восстанавливаются
-    for(const c of cells){c.pulse+=0.05;if(c.infected){c.inf=Math.max(0,c.inf-0.4);if(c.inf<=0)c.infected=false;}}
-    if(sceneT%80===0&&cells.length<15)spawnCell();
-    // Новые лейкоциты
-    if(sceneT%70===0&&leukos.length<10)spawnLeuko();
+    if(sceneT%60===0&&viruses.length<10)spawnVirusInBody();
+    if(sceneT>280&&viruses.length<3)for(let i=0;i<6;i++)spawnVirusInBody();
+    for(const c of cells){c.pulse+=.05;if(c.infected){c.inf=Math.max(0,c.inf-.4);if(c.inf<=0)c.infected=false;}}
+    if(sceneT%90===0&&cells.length<14)spawnCellInBody();
+    if(sceneT%80===0&&leukos.length<9)spawnLeuko();
   }
 
   if(scene===5){
-    // Вирусы исчезают, всё зеленеет
-    for(const v of viruses){v.hp-=0.05;if(v.hp<=0){addP(v.x,v.y,15,'#00e676',10,40);}}
+    for(const v of viruses){v.hp-=.06;if(v.hp<=0)addP(v.x,v.y,12,'#00e676',8,40);}
     viruses=viruses.filter(v=>v.hp>0);
-    for(const c of cells){c.pulse+=0.06;if(c.infected){c.inf=Math.max(0,c.inf-1);c.hue+=(200-c.hue)*0.02;if(c.inf<=0)c.infected=false;}}
-    for(const w of leukos){w.angle+=0.12;w.x+=Math.sin(time*0.05+w.angle)*3;w.y+=Math.cos(time*0.04+w.angle)*2;
-      w.trail.push({x:w.x,y:w.y,life:15});if(w.trail.length>15)w.trail.shift();for(const t of w.trail)t.life--;}
-    if(sceneT%40===0&&cells.length<20)spawnCell();
-    if(sceneT%90===0&&leukos.length<12)spawnLeuko();
-    if(sceneT%30===0)parts.push({x:Math.random()*W,y:H+10,vx:(Math.random()-.5)*3,vy:-2-Math.random()*4,life:120,max:120,r:4+Math.random()*8,color:`hsl(${100+Math.random()*80},90%,60%)`});
+    for(const c of cells){c.pulse+=.06;if(c.infected){c.inf=Math.max(0,c.inf-1);c.hue+=(200-c.hue)*.02;if(c.inf<=0)c.infected=false;}}
+    for(const w of leukos){w.angle+=.12;w.x+=Math.sin(time*.05+w.angle)*2.5;w.y+=Math.cos(time*.04+w.angle)*1.5;
+      w.trail.push({x:w.x,y:w.y,life:12});if(w.trail.length>12)w.trail.shift();for(const t of w.trail)t.life--;}
+    if(sceneT%50===0&&cells.length<18)spawnCellInBody();
+    if(sceneT%90===0&&leukos.length<10)spawnLeuko();
+    if(sceneT%25===0)parts.push({x:W/2+(Math.random()-.5)*W*.6,y:H+10,vx:(Math.random()-.5)*2,vy:-2-Math.random()*3,life:120,max:120,r:3+Math.random()*6,color:`hsl(${100+Math.random()*80},90%,60%)`});
   }
 }
 
-// === DRAW ===
+// ===== DRAW =====
 function draw(){
   X.save();
-  if(shake>0.5)X.translate((Math.random()-.5)*shake*2,(Math.random()-.5)*shake*2);
+  if(shake>.5)X.translate((Math.random()-.5)*shake*2,(Math.random()-.5)*shake*2);
 
-  // BG
-  const bg=X.createRadialGradient(W/2,H/2,80,W/2,H/2,950);
-  bg.addColorStop(0,'#1a0a2e');bg.addColorStop(0.5,'#0d1b3e');bg.addColorStop(1,'#050a18');
-  X.fillStyle=bg;X.fillRect(-50,-50,W+100,H+100);
+  // === ФОН ===
+  const bg=X.createRadialGradient(W/2,H*.45,50,W/2,H*.45,1000);
+  bg.addColorStop(0,'#0f1b3d');bg.addColorStop(.5,'#0a1228');bg.addColorStop(1,'#040810');
+  X.fillStyle=bg;X.fillRect(0,0,W,H);
 
-  // Кровеносные сосуды
-  X.strokeStyle='rgba(180,30,60,0.12)';X.lineWidth=50;
-  for(let i=0;i<4;i++){
-    X.beginPath();const y=350+i*400;
-    X.moveTo(-50,y+Math.sin(time*0.01+i)*25);
-    for(let x=0;x<=W+100;x+=80)X.lineTo(x,y+Math.sin(x*0.008+time*0.015+i)*45);
-    X.stroke();
-  }
+  // Сетка-сканер
+  X.strokeStyle='rgba(50,120,255,0.04)';X.lineWidth=1;
+  for(let x=0;x<W;x+=40){X.beginPath();X.moveTo(x,0);X.lineTo(x,H);X.stroke();}
+  for(let y=0;y<H;y+=40){X.beginPath();X.moveTo(0,y);X.lineTo(W,y);X.stroke();}
 
-  // Плавающие фон-частицы
-  X.fillStyle='rgba(100,150,255,0.06)';
-  for(let i=0;i<25;i++){
-    const px=((i*149+time*(0.4+i*0.08))%(W+80))-40;
-    const py=((i*97+time*0.25)%(H+80))-40;
-    X.beginPath();X.arc(px,py,4+(i%5)*3,0,6.28);X.fill();
-  }
+  // Линия сканирования
+  const scanY=((time*3)%(H+200))-100;
+  const scanG=X.createLinearGradient(0,scanY-60,0,scanY+60);
+  scanG.addColorStop(0,'rgba(0,229,255,0)');
+  scanG.addColorStop(.5,'rgba(0,229,255,0.12)');
+  scanG.addColorStop(1,'rgba(0,229,255,0)');
+  X.fillStyle=scanG;X.fillRect(0,scanY-60,W,120);
 
+  // === ТЕЛО ===
+  drawBody();
+
+  // Внутренности: клетки, вирусы, лейкоциты
   // Клетки
   for(const c of cells)drawCell(c);
   // Вирусы
@@ -393,62 +369,202 @@ function draw(){
   }
   X.globalAlpha=1;
 
-  // Текст-всплывашки
+  // Текст
   for(const f of floats){
     const a=f.life/f.max;X.globalAlpha=a;
     X.font=`bold ${f.size}px Arial Black,Arial`;X.textAlign='center';
-    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,0.7)';
+    X.lineWidth=7;X.strokeStyle='rgba(0,0,0,0.8)';
     X.strokeText(f.text,f.x,f.y);X.fillStyle=f.color;X.fillText(f.text,f.x,f.y);
   }
   X.globalAlpha=1;
 
-  // Vignette
-  const vig=X.createRadialGradient(W/2,H/2,H*0.3,W/2,H/2,H*0.85);
-  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.55)');
-  X.fillStyle=vig;X.fillRect(-50,-50,W+100,H+100);
+  // Виньетка
+  const vig=X.createRadialGradient(W/2,H*.45,H*.25,W/2,H*.45,H*.85);
+  vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.6)');
+  X.fillStyle=vig;X.fillRect(0,0,W,H);
 
   X.restore();
   X.save();
 
   // Flash
-  if(flash>0){X.globalAlpha=Math.min(0.65,flash/35);X.fillStyle=flashCol;X.fillRect(0,0,W,H);X.globalAlpha=1;}
+  if(flash>0){X.globalAlpha=Math.min(.6,flash/35);X.fillStyle=flashCol;X.fillRect(0,0,W,H);X.globalAlpha=1;}
 
   // === UI ===
   drawUI();
+  drawPulseMonitor();
 
   X.restore();
+}
+
+function drawBody(){
+  const pts=BODY_PTS.map(bodyToScreen);
+
+  // Свечение тела
+  X.save();
+  const bodyGlow=X.createRadialGradient(W/2,H*.48,50,W/2,H*.48,500);
+  const infectedCount=cells.filter(c=>c.infected).length;
+  const totalCells=cells.length||1;
+  const infectionPct=infectedCount/totalCells;
+  if(infectionPct>0.3){
+    bodyGlow.addColorStop(0,`rgba(255,23,68,${0.08+infectionPct*0.12})`);
+    bodyGlow.addColorStop(1,'rgba(255,23,68,0)');
+  }else{
+    bodyGlow.addColorStop(0,`rgba(0,229,255,${0.06+pulseVal*0.06})`);
+    bodyGlow.addColorStop(1,'rgba(0,229,255,0)');
+  }
+  X.fillStyle=bodyGlow;
+  X.beginPath();X.arc(W/2,H*.48,500,0,6.28);X.fill();
+
+  // Контур тела
+  X.beginPath();
+  X.moveTo(pts[0].x,pts[0].y);
+  // Пропускаем голову-круг, рисуем отдельно
+  // Просто соединяем все точки
+  for(let i=1;i<pts.length;i++)X.lineTo(pts[i].x,pts[i].y);
+  X.closePath();
+
+  // Заливка (полупрозрачная)
+  const fillGrad=X.createLinearGradient(0,H*.1,0,H*.85);
+  if(scene>=4&&scene<=4){
+    fillGrad.addColorStop(0,'rgba(0,180,220,0.06)');
+    fillGrad.addColorStop(.5,'rgba(0,229,255,0.1)');
+    fillGrad.addColorStop(1,'rgba(0,180,220,0.06)');
+  }else if(infectionPct>0.3){
+    fillGrad.addColorStop(0,'rgba(255,50,80,0.06)');
+    fillGrad.addColorStop(.5,`rgba(255,23,68,${0.08+infectionPct*0.08})`);
+    fillGrad.addColorStop(1,'rgba(255,50,80,0.06)');
+  }else{
+    fillGrad.addColorStop(0,'rgba(80,160,255,0.05)');
+    fillGrad.addColorStop(.5,'rgba(80,180,255,0.08)');
+    fillGrad.addColorStop(1,'rgba(80,160,255,0.05)');
+  }
+  X.fillStyle=fillGrad;
+  X.fill();
+
+  // Контур
+  X.strokeStyle=`rgba(100,200,255,${0.5+pulseVal*0.3})`;
+  X.lineWidth=3;
+  X.stroke();
+
+  // Голова отдельно (чтобы была круглой)
+  const headC=bodyToScreen({x:0,y:-0.42});
+  const headR=W*0.048;
+  X.beginPath();X.arc(headC.x,headC.y,headR,0,6.28);
+  X.fillStyle=fillGrad;X.fill();
+  X.strokeStyle=`rgba(100,200,255,${0.5+pulseVal*0.3})`;X.lineWidth=3;X.stroke();
+
+  // Лицо (простое)
+  const eyeY=headC.y-headR*0.1;
+  X.fillStyle='rgba(100,200,255,0.6)';
+  X.beginPath();X.arc(headC.x-headR*.3,eyeY,3,0,6.28);X.arc(headC.x+headR*.3,eyeY,3,0,6.28);X.fill();
+  X.strokeStyle='rgba(100,200,255,0.4)';X.lineWidth=2;
+  X.beginPath();X.arc(headC.x,headC.y+headR*.15,headR*.3,0.3,Math.PI-.3);X.stroke();
+
+  // === ОРГАНАНЫ ===
+  drawOrgans();
+
+  X.restore();
+}
+
+function drawOrgans(){
+  // Сердце
+  const h=ORGANS.heart;
+  const hp=bodyToScreen(h);
+  const hr=h.r*W*1.1*(1+pulseVal*0.15);
+  const heartGlow=X.createRadialGradient(hp.x,hp.y,hr*.2,hp.x,hp.y,hr*3);
+  heartGlow.addColorStop(0,`rgba(255,50,80,${0.4+pulseVal*0.4})`);
+  heartGlow.addColorStop(1,'rgba(255,50,80,0)');
+  X.fillStyle=heartGlow;X.beginPath();X.arc(hp.x,hp.y,hr*3,0,6.28);X.fill();
+
+  // Форма сердца
+  X.fillStyle=`rgba(255,50,80,${0.7+pulseVal*0.3})`;
+  X.beginPath();
+  X.moveTo(hp.x,hp.y+hr);
+  X.bezierCurveTo(hp.x-hr*1.5,hp.y-hr*.5,hp.x-hr*.5,hp.y-hr*1.5,hp.x,hp.y-hr*.4);
+  X.bezierCurveTo(hp.x+hr*.5,hp.y-hr*1.5,hp.x+hr*1.5,hp.y-hr*.5,hp.x,hp.y+hr);
+  X.fill();
+
+  // Лёгкие
+  const l=ORGANS.lungs;
+  const lp=bodyToScreen({x:l.lx,y:l.ly});
+  const rp=bodyToScreen({x:l.rx,y:l.ry});
+  const lr=l.r*W*1.1;
+  const breathe=Math.sin(time*.04)*0.06;
+
+  // Левое лёгкое
+  X.fillStyle='rgba(100,180,255,0.15)';
+  X.beginPath();
+  X.ellipse(lp.x,lp.y,lr*(.8+breathe),lr*(1.2+breathe),-.15,0,6.28);
+  X.fill();
+  X.strokeStyle='rgba(100,180,255,0.3)';X.lineWidth=2;X.stroke();
+
+  // Правое лёгкое
+  X.fillStyle='rgba(100,180,255,0.15)';
+  X.beginPath();
+  X.ellipse(rp.x,rp.y,lr*(.8+breathe),lr*(1.2+breathe),.15,0,6.28);
+  X.fill();
+  X.strokeStyle='rgba(100,180,255,0.3)';X.stroke();
+
+  // Трахея
+  const trTop=bodyToScreen({x:0,y:-0.32});
+  const trBot=bodyToScreen({x:0,y:-0.2});
+  X.strokeStyle='rgba(100,180,255,0.25)';X.lineWidth=6;
+  X.beginPath();X.moveTo(trTop.x,trTop.y);X.lineTo(trBot.x,trBot.y);X.stroke();
+  // Бронхи
+  X.lineWidth=4;
+  X.beginPath();X.moveTo(trBot.x,trBot.y);X.lineTo(lp.x+10,lp.y-15);X.stroke();
+  X.beginPath();X.moveTo(trBot.x,trBot.y);X.lineTo(rp.x-10,rp.y-15);X.stroke();
+
+  // Желудок
+  const st=ORGANS.stomach;
+  const sp=bodyToScreen(st);
+  const sr=st.r*W*1.1;
+  X.fillStyle='rgba(255,180,80,0.12)';
+  X.beginPath();X.ellipse(sp.x,sp.y,sr,sr*.75,.3,0,6.28);X.fill();
+  X.strokeStyle='rgba(255,180,80,0.25)';X.lineWidth=2;X.stroke();
+
+  // Мозг
+  const b=ORGANS.brain;
+  const bp=bodyToScreen(b);
+  const br=b.r*W*1.1;
+  X.fillStyle='rgba(200,150,255,0.1)';
+  X.beginPath();X.arc(bp.x,bp.y,br,0,6.28);X.fill();
+  // Извилины
+  X.strokeStyle='rgba(200,150,255,0.2)';X.lineWidth=1.5;
+  for(let i=0;i<5;i++){
+    X.beginPath();
+    const a=(i/5)*Math.PI*2+time*.01;
+    X.arc(bp.x+Math.cos(a)*br*.3,bp.y+Math.sin(a)*br*.2,br*.3,a,a+2);
+    X.stroke();
+  }
 }
 
 function drawCell(c){
   const{x,y,r,hue,pulse,infected,inf,dying}=c;
   const s=dying>0?dying/25:1;
-  const pr=r*(1+Math.sin(pulse)*0.04)*s;
+  const pr=r*(1+Math.sin(pulse)*.04)*s;
   X.save();X.translate(x,y);
 
   if(infected){
-    const gl=X.createRadialGradient(0,0,pr*0.4,0,0,pr*2.5);
-    gl.addColorStop(0,`hsla(${hue},90%,50%,0.35)`);gl.addColorStop(1,`hsla(${hue},90%,50%,0)`);
+    const gl=X.createRadialGradient(0,0,pr*.4,0,0,pr*2.5);
+    gl.addColorStop(0,`hsla(${hue},90%,50%,.35)`);gl.addColorStop(1,`hsla(${hue},90%,50%,0)`);
     X.fillStyle=gl;X.beginPath();X.arc(0,0,pr*2.5,0,6.28);X.fill();
   }
 
-  const g=X.createRadialGradient(-pr*0.3,-pr*0.3,pr*0.1,0,0,pr);
+  const g=X.createRadialGradient(-pr*.3,-pr*.3,pr*.1,0,0,pr);
   if(infected){g.addColorStop(0,`hsl(${hue},75%,60%)`);g.addColorStop(1,`hsl(${hue},75%,35%)`);}
   else{g.addColorStop(0,`hsl(${hue},70%,65%)`);g.addColorStop(1,`hsl(${hue},70%,40%)`);}
-  X.fillStyle=g;
-  X.beginPath();
-  for(let i=0;i<=32;i++){const a=(i/32)*6.28,w=1+Math.sin(a*3+pulse)*0.07+Math.sin(a*5-pulse)*0.04;
+  X.fillStyle=g;X.beginPath();
+  for(let i=0;i<=32;i++){const a=(i/32)*6.28,w=1+Math.sin(a*3+pulse)*.07+Math.sin(a*5-pulse)*.04;
     X.lineTo(Math.cos(a)*pr*w,Math.sin(a)*pr*w);}
   X.fill();
-  X.strokeStyle=infected?`hsla(${hue},90%,70%,0.7)`:`hsla(${hue},70%,80%,0.45)`;X.lineWidth=4;X.stroke();
+  X.strokeStyle=infected?`hsla(${hue},90%,70%,.7)`:`hsla(${hue},70%,80%,.45)`;X.lineWidth=2;X.stroke();
 
-  X.fillStyle=infected?'rgba(100,0,50,0.65)':'rgba(30,60,120,0.55)';
-  X.beginPath();X.ellipse(c.nuc.ox,c.nuc.oy,pr*0.33,pr*0.28,pulse,0,6.28);X.fill();
+  X.fillStyle=infected?'rgba(100,0,50,.65)':'rgba(30,60,120,.55)';
+  X.beginPath();X.ellipse(c.nuc.ox,c.nuc.oy,pr*.33,pr*.28,pulse,0,6.28);X.fill();
 
-  if(!dying){X.fillStyle=infected?'rgba(255,100,100,0.3)':'rgba(150,220,255,0.3)';
-    for(let i=0;i<4;i++){const a=pulse+i*1.6,d=pr*0.55;
-      X.beginPath();X.arc(Math.cos(a)*d,Math.sin(a)*d,pr*0.09,0,6.28);X.fill();}}
-  if(infected&&inf>0){X.strokeStyle='#ff1744';X.lineWidth=5;
-    X.beginPath();X.arc(0,0,pr+8,-1.57,-1.57+(inf/100)*6.28);X.stroke();}
+  if(infected&&inf>0){X.strokeStyle='#ff1744';X.lineWidth=3;
+    X.beginPath();X.arc(0,0,pr+5,-1.57,-1.57+(inf/100)*6.28);X.stroke();}
   X.restore();
 }
 
@@ -456,143 +572,185 @@ function drawVirus(v){
   const{x,y,r,angle,hue,wobble,spikes,hp}=v;
   const fl=hp<1.5&&time%8<4;
   X.save();X.translate(x,y);X.rotate(angle);
-  const gl=X.createRadialGradient(0,0,r*0.3,0,0,r*2);
-  gl.addColorStop(0,`hsla(${hue},90%,55%,0.45)`);gl.addColorStop(1,`hsla(${hue},90%,55%,0)`);
+  const gl=X.createRadialGradient(0,0,r*.3,0,0,r*2);
+  gl.addColorStop(0,`hsla(${hue},90%,55%,.45)`);gl.addColorStop(1,`hsla(${hue},90%,55%,0)`);
   X.fillStyle=gl;X.beginPath();X.arc(0,0,r*2,0,6.28);X.fill();
   for(let i=0;i<spikes;i++){
-    const a=(i/spikes)*6.28,wl=Math.sin(wobble+i)*4;
+    const a=(i/spikes)*6.28,wl=Math.sin(wobble+i)*3;
     X.save();X.rotate(a);
     X.fillStyle=fl?'#fff':`hsl(${hue},80%,50%)`;
-    X.beginPath();X.roundRect(-5,r-4,10,r*0.4+wl,4);X.fill();
+    X.beginPath();X.roundRect(-4,r-3,8,r*.38+wl,3);X.fill();
     X.fillStyle=fl?'#fff':`hsl(${hue},90%,65%)`;
-    X.beginPath();X.arc(0,r+r*0.38+wl,8,0,6.28);X.fill();
+    X.beginPath();X.arc(0,r+r*.36+wl,6,0,6.28);X.fill();
     X.restore();
   }
-  const bg=X.createRadialGradient(-r*0.3,-r*0.3,r*0.1,0,0,r);
+  const bg=X.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r);
   bg.addColorStop(0,fl?'#fff':`hsl(${hue},85%,65%)`);
-  bg.addColorStop(0.7,fl?'#fff':`hsl(${hue},80%,45%)`);
+  bg.addColorStop(.7,fl?'#fff':`hsl(${hue},80%,45%)`);
   bg.addColorStop(1,fl?'#fff':`hsl(${hue},75%,30%)`);
   X.fillStyle=bg;X.beginPath();X.arc(0,0,r,0,6.28);X.fill();
-  X.strokeStyle=`hsla(${hue},90%,80%,0.5)`;X.lineWidth=3;X.beginPath();
-  for(let i=0;i<18;i++){const t=i/17,px=Math.sin(t*12.5+wobble)*r*0.45,py=(t-0.5)*r*1.2;
+  X.strokeStyle=`hsla(${hue},90%,80%,.5)`;X.lineWidth=2;X.beginPath();
+  for(let i=0;i<16;i++){const t=i/15,px=Math.sin(t*12.5+wobble)*r*.4,py=(t-.5)*r*1.2;
     i===0?X.moveTo(px,py):X.lineTo(px,py);}
   X.stroke();
-  if(hp<2){X.rotate(-angle);X.fillStyle='rgba(0,0,0,0.5)';X.fillRect(-r,-r-22,r*2,7);
-    X.fillStyle=hp>1?'#ff9100':'#ff1744';X.fillRect(-r,-r-22,r*2*(hp/2),7);}
+  if(hp<2){X.rotate(-angle);X.fillStyle='rgba(0,0,0,.5)';X.fillRect(-r,-r-18,r*2,6);
+    X.fillStyle=hp>1?'#ff9100':'#ff1744';X.fillRect(-r,-r-18,r*2*(hp/2),6);}
   X.restore();
 }
 
 function drawLeuko(w){
   const{x,y,r,angle,trail}=w;
-  for(const t of trail){if(t.life<=0)continue;X.globalAlpha=t.life/15*0.25;
-    X.fillStyle='#00e5ff';X.beginPath();X.arc(t.x,t.y,r*0.5*(t.life/15),0,6.28);X.fill();}
+  for(const t of trail){if(t.life<=0)continue;X.globalAlpha=t.life/12*.3;
+    X.fillStyle='#00e5ff';X.beginPath();X.arc(t.x,t.y,r*.5*(t.life/12),0,6.28);X.fill();}
   X.globalAlpha=1;
   X.save();X.translate(x,y);
-  const gl=X.createRadialGradient(0,0,r*0.3,0,0,r*2.5);
-  gl.addColorStop(0,'rgba(0,229,255,0.45)');gl.addColorStop(1,'rgba(0,229,255,0)');
+  const gl=X.createRadialGradient(0,0,r*.3,0,0,r*2.5);
+  gl.addColorStop(0,'rgba(0,229,255,.45)');gl.addColorStop(1,'rgba(0,229,255,0)');
   X.fillStyle=gl;X.beginPath();X.arc(0,0,r*2.5,0,6.28);X.fill();
-  const g=X.createRadialGradient(-r*0.3,-r*0.3,r*0.1,0,0,r);
-  g.addColorStop(0,'#e0f7fa');g.addColorStop(0.5,'#80deea');g.addColorStop(1,'#00acc1');
+  const g=X.createRadialGradient(-r*.3,-r*.3,r*.1,0,0,r);
+  g.addColorStop(0,'#e0f7fa');g.addColorStop(.5,'#80deea');g.addColorStop(1,'#00acc1');
   X.fillStyle=g;X.beginPath();
-  for(let i=0;i<=32;i++){const a=(i/32)*6.28,w=1+Math.sin(a*4+angle*3)*0.14+Math.sin(a*7-angle*2)*0.07;
-    X.lineTo(Math.cos(a)*r*w,Math.sin(a)*r*w);}
-  X.fill();X.strokeStyle='rgba(255,255,255,0.55)';X.lineWidth=3;X.stroke();
-  X.fillStyle='rgba(40,100,180,0.65)';
-  for(let i=0;i<3;i++){const a=angle*0.5+i*2.1;
-    X.beginPath();X.ellipse(Math.cos(a)*r*0.18,Math.sin(a)*r*0.18,r*0.18,r*0.15,a,0,6.28);X.fill();}
-  X.fillStyle='rgba(255,255,255,0.45)';
-  for(let i=0;i<6;i++){const a=angle+i*1.05,d=r*0.5;
-    X.beginPath();X.arc(Math.cos(a)*d,Math.sin(a)*d,3.5,0,6.28);X.fill();}
+  for(let i=0;i<=32;i++){const a=(i/32)*6.28,ww=1+Math.sin(a*4+angle*3)*.14+Math.sin(a*7-angle*2)*.07;
+    X.lineTo(Math.cos(a)*r*ww,Math.sin(a)*r*ww);}
+  X.fill();X.strokeStyle='rgba(255,255,255,.55)';X.lineWidth=2;X.stroke();
+  X.fillStyle='rgba(40,100,180,.65)';
+  for(let i=0;i<3;i++){const a=angle*.5+i*2.1;
+    X.beginPath();X.ellipse(Math.cos(a)*r*.18,Math.sin(a)*r*.18,r*.18,r*.15,a,0,6.28);X.fill();}
   X.restore();
 }
 
 function drawUI(){
   const sc=SCENES[scene];
   const prog=sceneT/sc.dur;
+  const ta=Math.min(1,sceneT/25)*Math.min(1,Math.max(0,(sc.dur-sceneT)/25));
 
-  // Прогресс-бар (сверху)
-  X.fillStyle='rgba(0,0,0,0.5)';X.fillRect(0,0,W,8);
-  X.fillStyle=sc.color;X.fillRect(0,0,W*prog,8);
+  // Прогрессбар
+  X.fillStyle='rgba(0,0,0,0.5)';X.fillRect(0,0,W,6);
+  X.fillStyle=sc.col;X.fillRect(0,0,W*prog,6);
 
   // Заголовок сцены
-  const titleAlpha=Math.min(1,sceneT/20)*Math.min(1,(sc.dur-scT_safe())/20);
-  const ta=Math.min(1,sceneT/25)*Math.min(1,Math.max(0,(sc.dur-sceneT)/25));
   X.globalAlpha=ta;
+  X.fillStyle='rgba(0,0,0,0.7)';
+  X.beginPath();X.roundRect(40,H-310,W-80,190,20);X.fill();
+  X.fillStyle=sc.col;X.fillRect(40,H-310,10,190);
 
-  // Плашка заголовка
-  X.fillStyle='rgba(0,0,0,0.65)';
-  X.beginPath();X.roundRect(40,H-320,W-80,200,24);X.fill();
-  X.fillStyle=sc.color;
-  X.fillRect(40,H-320,12,200);
+  X.font='bold 66px Arial Black,Arial';X.textAlign='left';
+  X.lineWidth=9;X.strokeStyle='rgba(0,0,0,0.8)';
+  X.strokeText(sc.title,75,H-230);
+  X.fillStyle=sc.col;X.fillText(sc.title,75,H-230);
 
-  X.font='bold 72px Arial Black,Arial';X.textAlign='left';
-  X.lineWidth=10;X.strokeStyle='rgba(0,0,0,0.8)';
-  X.strokeText(sc.title,80,H-230);
-  X.fillStyle=sc.color;X.fillText(sc.title,80,H-230);
-
-  // Подзаголовок (многострочный)
-  X.font='bold 40px Arial';X.fillStyle='#eceff1';
+  X.font='bold 38px Arial';X.fillStyle='#eceff1';
   const lines=sc.sub.split('\n');
-  for(let i=0;i<lines.length;i++){
-    X.fillText(lines[i],80,H-165+i*50);
-  }
+  for(let i=0;i<lines.length;i++)X.fillText(lines[i],75,H-165+i*46);
   X.globalAlpha=1;
 
   // Номер сцены
-  X.font='bold 36px Arial';X.textAlign='right';
-  X.fillStyle='rgba(255,255,255,0.5)';
-  X.fillText(`${scene+1}/${SCENES.length}`,W-60,60);
+  X.font='bold 32px Arial';X.textAlign='right';
+  X.fillStyle='rgba(255,255,255,0.4)';
+  X.fillText(`${scene+1}/${SCENES.length}`,W-50,50);
 
-  // Бейджи для определённых сцен
-  if(scene===1||scene===2){
-    X.textAlign='left';X.font='bold 42px Arial Black';
-    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,0.7)';
-    const txt=scene===1?`🦠 Клеток заражено: ${cellCount}`:`🦠 Вирусов: ${viruses.length}`;
-    X.strokeText(txt,60,120);X.fillStyle='#ff9100';X.fillText(txt,60,120);
+  // Бейджи
+  if(scene===1){
+    X.textAlign='left';X.font='bold 38px Arial Black';X.lineWidth=7;X.strokeStyle='rgba(0,0,0,.7)';
+    X.strokeText(`🦠 Заражено: ${cellInfected}`,55,100);
+    X.fillStyle='#ff9100';X.fillText(`🦠 Заражено: ${cellInfected}`,55,100);
+  }
+  if(scene===2){
+    X.textAlign='left';X.font='bold 38px Arial Black';X.lineWidth=7;X.strokeStyle='rgba(0,0,0,.7)';
+    X.strokeText(`🦠 Вирусов: ${viruses.length}`,55,100);
+    X.fillStyle='#ff9100';X.fillText(`🦠 Вирусов: ${viruses.length}`,55,100);
   }
   if(scene===3||scene===4){
-    X.textAlign='left';X.font='bold 42px Arial Black';
-    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,0.7)';
-    X.strokeText(`💀 Уничтожено: ${killCount}`,60,120);
-    X.fillStyle='#00e5ff';X.fillText(`💀 Уничтожено: ${killCount}`,60,120);
+    X.textAlign='left';X.font='bold 38px Arial Black';X.lineWidth=7;X.strokeStyle='rgba(0,0,0,.7)';
+    X.strokeText(`💀 Уничтожено: ${killCount}`,55,100);
+    X.fillStyle='#00e5ff';X.fillText(`💀 Уничтожено: ${killCount}`,55,100);
   }
   if(scene===5){
-    X.textAlign='center';X.font='bold 52px Arial Black';
-    X.lineWidth=10;X.strokeStyle='rgba(0,0,0,0.8)';
-    const pulse=1+Math.sin(time*0.1)*0.05;
-    X.save();X.translate(W/2,H*0.28);X.scale(pulse,pulse);
+    X.textAlign='center';X.font='bold 56px Arial Black';X.lineWidth=10;X.strokeStyle='rgba(0,0,0,.8)';
+    const pulse=1+Math.sin(time*.1)*.05;
+    X.save();X.translate(W/2,H*.22);X.scale(pulse,pulse);
     X.strokeText('✅ ВЫЗДОРОВЕНИЕ!',0,0);
     X.fillStyle='#00e676';X.fillText('✅ ВЫЗДОРОВЕНИЕ!',0,0);
     X.restore();
   }
 
-  // Хинт "смотрите до конца" в начале
-  if(time<200){
-    X.globalAlpha=Math.min(1,time/30)*Math.min(1,(200-time)/30);
-    X.font='bold 44px Arial';X.textAlign='center';
-    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,0.8)';
-    X.strokeText('👀 СМОТРИ ДО КОНЦА',W/2,180);
-    X.fillStyle='#ffd600';X.fillText('👀 СМОТРИ ДО КОНЦА',W/2,180);
+  // Хинт
+  if(time<250&&scene===0){
+    X.globalAlpha=Math.min(1,time/30)*Math.min(1,(250-time)/40);
+    X.font='bold 42px Arial';X.textAlign='center';
+    X.lineWidth=8;X.strokeStyle='rgba(0,0,0,.8)';
+    X.strokeText('👀 ЧТО ПРОИСХОДИТ ПРИ ЗАРАЖЕНИИ',W/2,150);
+    X.fillStyle='#ffd600';X.fillText('👀 ЧТО ПРОИСХОДИТ ПРИ ЗАРАЖЕНИИ',W/2,150);
     X.globalAlpha=1;
   }
 }
-function scT_safe(){return 0;}
+
+// === PULSE MONITOR (ЭКГ снизу) ===
+let ecgData=[];
+function drawPulseMonitor(){
+  const monH=160,monY=H-monH-30,monX=40,monW=W-80;
+
+  // Подложка
+  X.fillStyle='rgba(0,0,0,0.65)';
+  X.beginPath();X.roundRect(monX-10,monY-35,monW+20,monH+70,16);X.fill();
+  X.strokeStyle='rgba(0,229,255,0.3)';X.lineWidth=2;
+  X.beginPath();X.roundRect(monX-10,monY-35,monW+20,monH+70,16);X.stroke();
+
+  // Заголовок монитора
+  X.font='bold 28px Arial';X.textAlign='left';
+  X.fillStyle='rgba(0,229,255,0.8)';
+  X.fillText('❤️ ПУЛЬС',monX,monY-10);
+
+  // BPM
+  X.textAlign='right';
+  X.font='bold 36px Arial Black';
+  X.fillStyle='#ff5252';
+  X.fillText(`${pulseBPM} BPM`,monX+monW,monY-8);
+
+  // ECG сетка
+  X.strokeStyle='rgba(0,229,255,0.08)';X.lineWidth=1;
+  for(let x=monX;x<monX+monW;x+=30){X.beginPath();X.moveTo(x,monY);X.lineTo(x,monY+monH);X.stroke();}
+  for(let y=monY;y<monY+monH;y+=25){X.beginPath();X.moveTo(monX,y);X.lineTo(monX+monW,y);X.stroke();}
+
+  // ECG волна
+  const beat=(time/60)*pulseBPM;
+  ecgData.push(getPulse(time));
+  if(ecgData.length>monW)ecgData.shift();
+
+  X.strokeStyle='#00e676';X.lineWidth=3;X.lineJoin='round';X.shadowColor='#00e676';X.shadowBlur=8;
+  X.beginPath();
+  for(let i=0;i<ecgData.length;i++){
+    const ex=monX+monW-ecgData.length+i;
+    const ey=monY+monH/2-ecgData[i]*monH*.4;
+    i===0?X.moveTo(ex,ey):X.lineTo(ex,ey);
+  }
+  X.stroke();
+  X.shadowBlur=0;
+
+  // Точка-каретка
+  if(ecgData.length>0){
+    const lastX=monX+monW-1;
+    const lastY=monY+monH/2-ecgData[ecgData.length-1]*monH*.4;
+    X.fillStyle='#00e676';X.shadowColor='#00e676';X.shadowBlur=15;
+    X.beginPath();X.arc(lastX,lastY,6,0,6.28);X.fill();
+    X.shadowBlur=0;
+  }
+
+  // Пульс-точка (пульсирует)
+  const dotR=8+pulseVal*6;
+  X.fillStyle=`rgba(255,82,82,${0.7+pulseVal*0.3})`;
+  X.beginPath();X.arc(monX+monW+5,monY+monH/2,dotR,0,6.28);X.fill();
+}
 
 // === LOOP ===
 function loop(){update();draw();requestAnimationFrame(loop);}
 resetScene(0);
 loop();
 
-// Старт по клику (для аудио policy)
-C.addEventListener('pointerdown',()=>{
-  initAudio();
-  if(scene>=SCENES.length-1&&sceneT>100){resetScene(0);}
-},{once:true});
-C.addEventListener('keydown',e=>{if(e.code==='Space')initAudio();},{once:true});
-// Автостарт звука при первой интеракции или через таймаут
-setTimeout(()=>initAudio(),100);
+C.addEventListener('pointerdown',()=>{initAudio();if(scene>=SCENES.length-1&&sceneT>100)resetScene(0);},{once:true});
 document.addEventListener('click',()=>initAudio(),{once:true});
 document.addEventListener('touchstart',()=>initAudio(),{once:true});
+setTimeout(()=>initAudio(),100);
 </script>
 </body>
 </html>

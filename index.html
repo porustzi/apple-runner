@@ -90,7 +90,7 @@ function spawnVirus(px,py){
 function spawnCell(){
   const zones=[[0,-.18],[.06,-.12],[-.06,-.12],[0,-.05],[.05,.05],[-.05,.05],[0,.12],[.04,-.25],[-.04,-.25],[0,-.32]];
   const z=zones[Math.floor(rnd(0,zones.length))];
-  cells.push({x:W/2+z[0]*W+rnd(-30,30),y:H*.42+z[1]*H+rnd(-20,20),
+  cells.push({x:W/2+z[0]*W+rnd(-30,30),y:H*.45+z[1]*H+rnd(-20,20),
     r:rnd(16,26),hue:rnd(195,235),infected:false,inf:0,
     pulse:rnd(0,TAU),dying:0,nucOx:rnd(-5,5),nucOy:rnd(-5,5)});
 }
@@ -103,7 +103,7 @@ function resetScene(idx){
   sceneIdx=idx;sceneT=0;
   const sc=SCENES[idx];
   bgHue=[210,355,25,190,185,130][idx];
-  fever=[0,.1,.25,.4,.7,1][idx]*3;
+  fever=[0,.15,.4,.7,1,0][idx]*2.2;
   noseRed=[0,.3,.6,.8,1,.2][idx];
   happy=[0,0,0,0,0,1][idx];
   shiverT=idx===2?60:idx===4?40:0;
@@ -142,7 +142,7 @@ function update(){
 
   const sc=SCENES[sceneIdx];
   if(sceneT>=sc.dur){nextScene();return;}
-  const bx=W/2,by=H*.42;
+  const bx=W/2,by=H*.45;
 
   // ── SNEEZE ──
   if(sc.id==='sneeze'){
@@ -280,7 +280,7 @@ function drawBG(){
 
 // ═══════════ DRAW: BOY ═══════════
 function drawBoy(){
-  const bx=W/2,by=H*.42;
+  const bx=W/2,by=H*.45;
   const shiver=shiverT>0?Math.sin(tick*.55)*5:0;
   const breathe=Math.sin(tick*.04)*3;
   const lean=sneezeT>20?-16:sneezeT>0?5:0;
@@ -318,7 +318,7 @@ function drawBoy(){
   rr(-80,-30+breathe*.3,160,205,32);ctx.fill();
   // stripes
   ctx.fillStyle='rgba(255,255,255,0.14)';
-  for(let i=0;i<6;i++)rr(-80,-14+i*34+breathe*.3,160,15,6);ctx.fill();
+  for(let i=0;i<6;i++){rr(-80,-14+i*34+breathe*.3,160,15,6);ctx.fill();}
   // pocket
   ctx.strokeStyle='rgba(255,255,255,0.4)';ctx.lineWidth=3;
   rr(-38,95,76,52,12);ctx.stroke();
@@ -446,7 +446,7 @@ function drawBoy(){
 // ═══════════ DRAW: INSIDE (X-RAY) ═══════════
 function drawInside(){
   if(state!=='play'||sceneIdx<1||sceneIdx>=5)return;
-  const bx=W/2,by=H*.42;
+  const bx=W/2,by=H*.45;
   const bw=300,bh=380,bxp=bx-bw/2,byp=by-80;
 
   ctx.save();
@@ -608,11 +608,38 @@ function drawUI(){
   ctx.fillStyle='rgba(0,0,0,0.45)';
   rr(40,250,240,70,20);ctx.fill();
   txt(`🌡 ${temp}°C`,160,300,38,fever>.5?'#ff5252':'#fff','center','bold');
+
+  // scene counter
+  ctx.fillStyle='rgba(0,0,0,0.45)';
+  rr(W-280,250,240,70,20);ctx.fill();
+  txt(`${sceneIdx+1}/${SCENES.length}`,W-160,300,38,'#fff','center','bold');
+
+  // lower panel — большая подпись сцены
+  const lp=H-520;
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  rr(40,lp,W-80,220,32);ctx.fill();
+  ctx.strokeStyle=sc.color+'88';ctx.lineWidth=4;
+  rr(40,lp,W-80,220,32);ctx.stroke();
+
+  ctx.textAlign='center';
+  ctx.font='bold 72px Arial';
+  ctx.lineWidth=12;ctx.strokeStyle='#000';ctx.lineJoin='round';
+  ctx.strokeText(sc.title,W/2,lp+80);
+  ctx.fillStyle=sc.color;
+  ctx.fillText(sc.title,W/2,lp+80);
+
+  ctx.font='36px Arial';ctx.fillStyle='rgba(255,255,255,0.9)';
+  ctx.fillText(sc.sub,W/2,lp+140);
+
+  // stats row
+  const sy=lp+195;
+  txt(`🦠 Вирусов: ${viruses.length}`,W*.3,sy,34,'#ff8a80','center','bold');
+  txt(`💀 Убито: ${kills}`,W*.7,sy,34,'#ef9a9a','center','bold');
 }
 
 function drawECG(){
   if(state!=='play')return;
-  const bpm=Math.round(72+fever*60);
+  const bpm=Math.round(72+fever*20);
   const mx=40,my=H-180,mw=W-80,mh=100;
 
   ctx.fillStyle='rgba(0,0,0,0.5)';
@@ -699,7 +726,7 @@ function draw(){
   drawFx();
 
   // vignette
-  const vig=ctx.createRadialGradient(W/2,H*.42,H*.25,W/2,H*.42,H*.9);
+  const vig=ctx.createRadialGradient(W/2,H*.45,H*.25,W/2,H*.45,H*.9);
   vig.addColorStop(0,'rgba(0,0,0,0)');vig.addColorStop(1,'rgba(0,0,0,0.5)');
   ctx.fillStyle=vig;ctx.fillRect(0,0,W,H);
   ctx.restore();
